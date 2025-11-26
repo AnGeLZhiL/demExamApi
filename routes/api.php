@@ -6,6 +6,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\EventAccountController;
+use App\Http\Controllers\ServerController;
 
 /*
 |--------------------------------------------------------------------------
@@ -37,4 +38,7 @@ Route::get('/events/{id}/event-accounts', [EventController::class, 'getEventAcco
 
 //Module
 Route::apiResource('modules', ModuleController::class);
+
+//Server
+Route::apiResource('servers', ServerController::class);
 
