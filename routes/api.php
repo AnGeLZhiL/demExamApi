@@ -9,6 +9,7 @@ use App\Http\Controllers\EventAccountController;
 use App\Http\Controllers\ServerController;
 use App\Http\Controllers\RepositoryController;
 use App\Http\Controllers\DatabaseController;
+use App\Http\Controllers\FileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -49,4 +50,7 @@ Route::apiResource('repositories', RepositoryController::class);
 
 //Database
 Route::apiResource('databases', DatabaseController::class);
+
+//File
+Route::apiResource('files', FileController::class);
 
