@@ -7,6 +7,7 @@ use App\Http\Controllers\EventController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\EventAccountController;
 use App\Http\Controllers\ServerController;
+use App\Http\Controllers\RepositoryController;
 
 /*
 |--------------------------------------------------------------------------
@@ -41,4 +42,7 @@ Route::apiResource('modules', ModuleController::class);
 
 //Server
 Route::apiResource('servers', ServerController::class);
+
+//Repository
+Route::apiResource('repositories', RepositoryController::class);
 
