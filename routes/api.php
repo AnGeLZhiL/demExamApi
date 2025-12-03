@@ -10,6 +10,7 @@ use App\Http\Controllers\ServerController;
 use App\Http\Controllers\RepositoryController;
 use App\Http\Controllers\DatabaseController;
 use App\Http\Controllers\FileController;
+use App\Http\Controllers\AuthController;
 
 /*
 |--------------------------------------------------------------------------
@@ -53,4 +54,11 @@ Route::apiResource('databases', DatabaseController::class);
 
 //File
 Route::apiResource('files', FileController::class);
+
+// Authentication
+Route::post('/login', [AuthController::class, 'login']);
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/user', [AuthController::class, 'user']);
+});
 
