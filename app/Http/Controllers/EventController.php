@@ -11,22 +11,44 @@ class EventController extends Controller
      * Display a listing of the resource.Отобразите список ресурсов.
      * получить список всех мероприятий
      */
-    public function index()
+    public function index(Request $request)
     {
-        return Event::with('status')
-        ->orderBy('date', 'asc')
-        ->get()
-        ->map(function ($event) {
-            return [
-                'id' => $event->id,
-                'name' => $event->name,
-                'date' => $event->date,
-                'status' => [
-                    'id' => $event->status->id,
-                    'name' => $event->status->name
-                ]
-            ];
-        });
+        $query = Event::with('status')
+            ->orderBy('date', 'asc');
+        
+        // Поиск по названию
+        if ($request->has('search') && $request->search) {
+            $query->where('name', 'like', '%' . $request->search . '%');
+        }
+        
+        // Фильтрация по статусу
+        if ($request->has('status_id') && $request->status_id) {
+            $query->where('status_id', $request->status_id);
+        }
+        
+        // Фильтрация по дате (от)
+        if ($request->has('date_from') && $request->date_from) {
+            $query->where('date', '>=', $request->date_from);
+        }
+        
+        // Фильтрация по дате (до)
+        if ($request->has('date_to') && $request->date_to) {
+            $query->where('date', '<=', $request->date_to);
+        }
+        
+        // Пока без пагинации - вернем все
+        return $query->get()
+            ->map(function ($event) {
+                return [
+                    'id' => $event->id,
+                    'name' => $event->name,
+                    'date' => $event->date,
+                    'status' => [
+                        'id' => $event->status->id,
+                        'name' => $event->status->name
+                    ]
+                ];
+            });
     }
 
     /**

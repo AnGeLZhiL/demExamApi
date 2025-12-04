@@ -11,6 +11,7 @@ use App\Http\Controllers\RepositoryController;
 use App\Http\Controllers\DatabaseController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\StatusController;
 
 /*
 |--------------------------------------------------------------------------
@@ -61,5 +62,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/events/{id}/modules', [EventController::class, 'getModules']); //получить модули заданного мероприятия
     Route::get('/events/{id}/users', [EventController::class, 'getUsers']); //получить пользователей заданного мероприятия
     Route::get('/events/{id}/event-accounts', [EventController::class, 'getEventAccounts']); //получить учетные записи с фильтрацией
+    
+    //Status
+    Route::apiResource('statuses', StatusController::class);
 });
 
