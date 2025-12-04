@@ -34,12 +34,6 @@ Route::get('/users/{id}/event-accounts', [UserController::class, 'getEventAccoun
 //EventAccount
 Route::apiResource('event-accounts', EventAccountController::class);
 
-//Event
-Route::apiResource('events', EventController::class);
-Route::get('/events/{id}/modules', [EventController::class, 'getModules']); //получить модули заданного мероприятия
-Route::get('/events/{id}/users', [EventController::class, 'getUsers']); //получить пользователей заданного мероприятия
-Route::get('/events/{id}/event-accounts', [EventController::class, 'getEventAccounts']); //получить учетные записи с фильтрацией
-
 //Module
 Route::apiResource('modules', ModuleController::class);
 
@@ -55,10 +49,17 @@ Route::apiResource('databases', DatabaseController::class);
 //File
 Route::apiResource('files', FileController::class);
 
-// Authentication
 Route::post('/login', [AuthController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
+
+    // Authentication
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
+    
+    //Event
+    Route::apiResource('events', EventController::class);
+    Route::get('/events/{id}/modules', [EventController::class, 'getModules']); //получить модули заданного мероприятия
+    Route::get('/events/{id}/users', [EventController::class, 'getUsers']); //получить пользователей заданного мероприятия
+    Route::get('/events/{id}/event-accounts', [EventController::class, 'getEventAccounts']); //получить учетные записи с фильтрацией
 });
 

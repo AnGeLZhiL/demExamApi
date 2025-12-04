@@ -13,7 +13,20 @@ class EventController extends Controller
      */
     public function index()
     {
-        return Event::with(['status'])->get();
+        return Event::with('status')
+        ->orderBy('date', 'asc')
+        ->get()
+        ->map(function ($event) {
+            return [
+                'id' => $event->id,
+                'name' => $event->name,
+                'date' => $event->date,
+                'status' => [
+                    'id' => $event->status->id,
+                    'name' => $event->status->name
+                ]
+            ];
+        });
     }
 
     /**
