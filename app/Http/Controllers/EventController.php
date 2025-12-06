@@ -19,7 +19,7 @@ class EventController extends Controller
         
         // Поиск по названию
         if ($request->has('search') && $request->search) {
-            $query->where('name', 'like', '%' . $request->search . '%');
+            $query->where('name', 'ilike', '%' . $request->search . '%');
         }
         
         // Фильтрация по статусу
@@ -148,13 +148,15 @@ class EventController extends Controller
     public function getUsers($id, Request $request)
     {
         $event = Event::find($id);
-        
+    
         if (!$event) {
             return response()->json(['error' => 'Event not found'], 404);
         }
         
-        $query = $event->users()->with(['role', 'group']);
+        // Получаем учетные записи мероприятия с пользователями и их ролями
+        $query = $event->eventAccounts()->with(['user.group', 'role']);
         
+        // ФИЛЬТРАЦИЯ ПО РОЛИ (через event_accounts.role)
         if ($request->has('exclude_roles')) {
             $excludeRoles = explode(',', $request->exclude_roles);
             $query->whereHas('role', function($q) use ($excludeRoles) {
@@ -169,32 +171,60 @@ class EventController extends Controller
             });
         }
         
-        return $query->get();
+        // Получаем данные
+        $eventAccounts = $query->get();
+        
+        // Преобразуем: каждая учетная запись → пользователь с информацией о роли в мероприятии
+        $usersWithEventData = $eventAccounts->map(function ($account) {
+            $user = $account->user;
+            
+            return [
+                // Данные пользователя
+                'id' => $user->id,
+                'last_name' => $user->last_name,
+                'first_name' => $user->first_name,
+                'middle_name' => $user->middle_name,
+                'birth_date' => $user->birth_date,
+                'passport_data' => $user->passport_data,
+                'group' => $user->group,
+                
+                // Данные из учетной записи мероприятия
+                'event_account_id' => $account->id,
+                'login' => $account->login,
+                'seat_number' => $account->seat_number,
+                
+                // Роль пользователя в ЭТОМ мероприятии
+                'role_in_event' => $account->role,
+                'role_id' => $account->role_id
+            ];
+        });
+        
+        return $usersWithEventData;
     }
 
     //получить учетные записи мероприятия с фильтрацией
     public function getEventAccounts($id, Request $request)
     {
         $event = Event::find($id);
-        
+    
         if (!$event) {
             return response()->json(['error' => 'Event not found'], 404);
         }
         
-        $query = $event->eventAccounts()->with(['user.role', 'user.group']);
+        // 🔴 ИЗМЕНИТЬ: with(['user.group', 'role'])
+        $query = $event->eventAccounts()->with(['user.group', 'role']);
         
-        // Фильтрация: исключить указанные роли
+        // 🔴 ИЗМЕНИТЬ: whereHas('role', ...) вместо whereHas('user.role', ...)
         if ($request->has('exclude_roles')) {
             $excludeRoles = explode(',', $request->exclude_roles);
-            $query->whereHas('user.role', function($q) use ($excludeRoles) {
+            $query->whereHas('role', function($q) use ($excludeRoles) {
                 $q->whereNotIn('name', $excludeRoles);
             });
         }
         
-        // Фильтрация: только указанные роли  
         if ($request->has('roles')) {
             $roles = explode(',', $request->roles);
-            $query->whereHas('user.role', function($q) use ($roles) {
+            $query->whereHas('role', function($q) use ($roles) {
                 $q->whereIn('name', $roles);
             });
         }

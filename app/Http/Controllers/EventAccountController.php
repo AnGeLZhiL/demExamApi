@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\EventAccount;
 use App\Models\User;
 use App\Models\Event;
+use Illuminate\Support\Facades\Hash;
 
 class EventAccountController extends Controller
 {
@@ -15,7 +16,7 @@ class EventAccountController extends Controller
      */
     public function index()
     {
-        return EventAccount::with(['user', 'event'])->get();
+        return EventAccount::with(['user', 'event', 'role'])->get();
     }
 
     /**
@@ -28,8 +29,8 @@ class EventAccountController extends Controller
         $validated = $request->validate([
             'user_id' => 'required|exists:users,id',
             'event_id' => 'required|exists:events,id',
-            'seat_number' => 'nullable|string|max:10'
-            // login и password НЕ принимаем - генерируем сами
+            'seat_number' => 'nullable|string|max:10',
+            'role_id' => 'nullable|exists:roles,id' // ← ДОБАВИТЬ ЭТУ СТРОКУ
         ]);
         
         // Проверяем, не существует ли уже учетная запись
@@ -50,26 +51,30 @@ class EventAccountController extends Controller
         
         // Генерируем логин и пароль
         $login = $this->generateLogin($user, $event);
-        $password = $this->generatePassword();
+        $rawPassword = $this->generateRawPassword(); // ← НОВЫЙ МЕТОД ДЛЯ "СЫРОГО" ПАРОЛЯ
+        $hashedPassword = Hash::make($rawPassword); // ← ХЭШИРУЕМ
         
         // Создаем учетную запись
-        $account = EventAccount::create([
+         $account = EventAccount::create([
             'user_id' => $validated['user_id'],
             'event_id' => $validated['event_id'],
             'login' => $login,
-            'password' => $password,
-            'seat_number' => $validated['seat_number'] ?? null
+            'password' => $hashedPassword, // ← СОХРАНЯЕМ ХЭШ
+            'seat_number' => $validated['seat_number'] ?? null,
+            'role_id' => $validated['role_id'] ?? 1
         ]);
         
         // Загружаем связи для ответа
-        $account->load(['user', 'event']);
+        $account->load(['user', 'event', 'role']); 
         
         return response()->json([
             'message' => 'Учетная запись успешно создана',
             'data' => $account,
-            'generated_credentials' => [
+            'credentials' => [  // ← ВОЗВРАЩАЕМ КРЕДЫ ДЛЯ ВЫДАЧИ
                 'login' => $login,
-                'password' => $password
+                'password' => $rawPassword, // ← ОРИГИНАЛЬНЫЙ пароль
+                'event_name' => $event->name,
+                'user_name' => $user->last_name . ' ' . $user->first_name
             ]
         ], 201);
     }
@@ -80,7 +85,7 @@ class EventAccountController extends Controller
      */
     public function show(string $id)
     {
-        $account = EventAccount::with(['user', 'event'])->find($id);
+        $account = EventAccount::with(['user', 'event', 'role'])->find($id);
         
         if (!$account) {
             return response()->json(['error' => 'Event account not found'], 404);
@@ -101,9 +106,12 @@ class EventAccountController extends Controller
             return response()->json(['error' => 'Event account not found'], 404);
         }
         
+        // Разрешаем обновлять login, password, seat_number, role_id
         $account->update($request->only([
-            'login', 'password', 'seat_number'
+            'login', 'password', 'seat_number', 'role_id' // ← ДОБАВИТЬ 'role_id'
         ]));
+
+        $account->load(['user', 'event', 'role']);
         
         return $account;
     }
@@ -129,26 +137,38 @@ class EventAccountController extends Controller
      */
     private function generateLogin(User $user, Event $event): string
     {
-        // Берем первые 8 символов фамилии (латиницей)
-        $lastName = transliterator_transliterate(
-            'Russian-Latin/BGN', 
-            $user->last_name
-        );
-        $lastName = strtolower(preg_replace('/[^a-z]/', '', $lastName));
+        // Простая транслитерация русских букв
+        $translitMap = [
+            'а' => 'a', 'б' => 'b', 'в' => 'v', 'г' => 'g', 'д' => 'd',
+            'е' => 'e', 'ё' => 'yo', 'ж' => 'zh', 'з' => 'z', 'и' => 'i',
+            'й' => 'y', 'к' => 'k', 'л' => 'l', 'м' => 'm', 'н' => 'n',
+            'о' => 'o', 'п' => 'p', 'р' => 'r', 'с' => 's', 'т' => 't',
+            'у' => 'u', 'ф' => 'f', 'х' => 'kh', 'ц' => 'ts', 'ч' => 'ch',
+            'ш' => 'sh', 'щ' => 'shch', 'ъ' => '', 'ы' => 'y', 'ь' => '',
+            'э' => 'e', 'ю' => 'yu', 'я' => 'ya',
+            'А' => 'A', 'Б' => 'B', 'В' => 'V', 'Г' => 'G', 'Д' => 'D',
+            'Е' => 'E', 'Ё' => 'Yo', 'Ж' => 'Zh', 'З' => 'Z', 'И' => 'I',
+            'Й' => 'Y', 'К' => 'K', 'Л' => 'L', 'М' => 'M', 'Н' => 'N',
+            'О' => 'O', 'П' => 'P', 'Р' => 'R', 'С' => 'S', 'Т' => 'T',
+            'У' => 'U', 'Ф' => 'F', 'Х' => 'Kh', 'Ц' => 'Ts', 'Ч' => 'Ch',
+            'Ш' => 'Sh', 'Щ' => 'Shch', 'Ъ' => '', 'Ы' => 'Y', 'Ь' => '',
+            'Э' => 'E', 'Ю' => 'Yu', 'Я' => 'Ya'
+        ];
+        
+        // Транслитерируем фамилию
+        $lastName = strtr(mb_strtolower($user->last_name, 'UTF-8'), $translitMap);
+        $lastName = preg_replace('/[^a-z]/', '', $lastName);
         $lastName = substr($lastName, 0, 8);
         
-        // Буква имени
-        $firstNameLetter = transliterator_transliterate(
-            'Russian-Latin/BGN',
-            substr($user->first_name, 0, 1)
-        );
-        $firstNameLetter = strtolower($firstNameLetter);
+        // Первая буква имени
+        $firstName = mb_strtolower($user->first_name, 'UTF-8');
+        $firstNameLetter = strtr(mb_substr($firstName, 0, 1, 'UTF-8'), $translitMap);
         
-        // Код мероприятия или ID
+        // Код мероприятия
         $eventCode = $event->code ?? 'event' . $event->id;
         
         // Случайная часть
-        $random = bin2hex(random_bytes(2)); // 4 случайных символа
+        $random = substr(md5(uniqid()), 0, 4);
         
         // Собираем логин
         $login = $lastName . '_' . $firstNameLetter . '_' . $eventCode . '_' . $random;
@@ -162,7 +182,6 @@ class EventAccountController extends Controller
             $counter++;
             
             if ($counter > 5) {
-                // Если не получается уникальный, добавляем timestamp
                 $login = $originalLogin . '_' . time();
                 break;
             }
@@ -171,26 +190,26 @@ class EventAccountController extends Controller
         return $login;
     }
     
-    /**
-     * Генерация пароля (10 символов: буквы + цифры)
-     */
-    private function generatePassword(): string
+    // 🔴 НОВЫЙ МЕТОД: Генерация "сырого" пароля
+    private function generateRawPassword(): string
     {
         $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         $password = '';
         
-        // Гарантируем хотя бы одну цифру
-        $password .= rand(0, 9);
+        $password .= rand(0, 9); // цифра
+        $password .= chr(rand(65, 90)); // заглавная буква
         
-        // Гарантируем хотя бы одну заглавную букву
-        $password .= chr(rand(65, 90)); // A-Z
-        
-        // Остальные символы
         for ($i = 0; $i < 8; $i++) {
             $password .= $chars[rand(0, strlen($chars) - 1)];
         }
         
-        // Перемешиваем
         return str_shuffle($password);
+    }
+
+    // 🔴 СТАРЫЙ МЕТОД: Теперь только для хэширования
+    private function generatePassword(): string
+    {
+        $rawPassword = $this->generateRawPassword();
+        return Hash::make($rawPassword);
     }
 }

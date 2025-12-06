@@ -8,6 +8,7 @@ use App\Models\EventAccount;
 use App\Models\User;
 use App\Models\Event;
 use App\Models\Role;
+use Illuminate\Support\Facades\Hash;
 
 class EventAccountSeeder extends Seeder
 {
@@ -21,7 +22,8 @@ class EventAccountSeeder extends Seeder
             'user_id' => 1,
             'event_id' => 1,
             'login' => 'ivanov_exam1',
-            'password' => 'password123',
+            //password123
+            'password' => Hash::make('password123'),
             'seat_number' => 'A1',
             'role_id' => 1
         ]);
@@ -31,7 +33,8 @@ class EventAccountSeeder extends Seeder
             'user_id' => 3, 
             'event_id' => 1,
             'login' => 'sidorov_exam1',
-            'password' => 'password456',
+            //password456
+            'password' => Hash::make('password456'),
             'seat_number' => 'A2',
             'role_id' => 2
         ]);
@@ -41,7 +44,8 @@ class EventAccountSeeder extends Seeder
             'user_id' => 1,
             'event_id' => 2,
             'login' => 'ivanov_exam2', 
-            'password' => 'password789',
+            //password789
+            'password' => Hash::make('password789'),
             'seat_number' => 'B1',
             'role_id' => 3
         ]);

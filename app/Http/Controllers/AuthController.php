@@ -33,18 +33,21 @@ class AuthController extends Controller
 
         // результат поиска пользователя
         $user = User::find($eventAccount->user_id);
-
-        //если пользователя с такими данными не нашли
+    
         if (!$user) {
             throw ValidationException::withMessages([
                 'login' => ['Пользователь не найден.'],
             ]);
         }
 
-        // создание токена от этого пользователя
+        // 🔴 ПОЛУЧАЕМ РОЛЬ ИЗ УЧЕТНОЙ ЗАПИСИ, А НЕ ИЗ ПОЛЬЗОВАТЕЛЯ
+        // Загружаем роль учетной записи
+        $eventAccount->load('role');
+        
+        // Создание токена
         $token = $user->createToken('event-auth')->plainTextToken;
 
-        // возвращаемый ответ при успешной авторизации
+        // 🔴 ОБНОВЛЯЕМ ОТВЕТ
         return response()->json([
             'token' => $token,
             'user' => [
@@ -52,14 +55,16 @@ class AuthController extends Controller
                 'last_name' => $user->last_name,
                 'first_name' => $user->first_name,
                 'middle_name' => $user->middle_name,
-                'role_id' => $user->role_id,
+                // 'role_id' => $user->role_id, // ← УДАЛИТЬ ЭТУ СТРОКУ
                 'group_id' => $user->group_id
             ],
             'event_account' => [
                 'id' => $eventAccount->id,
-                'event_id' => $eventAccount->event_id, // 🎯 Система сама определяет мероприятие!
+                'event_id' => $eventAccount->event_id,
                 'login' => $eventAccount->login,
-                'seat_number' => $eventAccount->seat_number
+                'seat_number' => $eventAccount->seat_number,
+                'role_id' => $eventAccount->role_id, // ← ДОБАВИТЬ РОЛЬ ИЗ УЧЕТНОЙ ЗАПИСИ
+                'role_name' => $eventAccount->role->name ?? null // ← ИМЯ РОЛИ
             ]
         ]);
     }
@@ -81,8 +86,21 @@ class AuthController extends Controller
      */
     public function user(Request $request)
     {
+        $user = $request->user();
+    
+        // Находим активную учетную запись пользователя
+        // (предполагаем что пользователь авторизован через eventAccount)
+        // Это зависит от вашей логики авторизации
+        
         return response()->json([
-            'user' => $request->user()
+            'user' => [
+                'id' => $user->id,
+                'last_name' => $user->last_name,
+                'first_name' => $user->first_name,
+                'middle_name' => $user->middle_name,
+                'group_id' => $user->group_id
+                // role_id больше нет
+            ]
         ]);
     }
 }

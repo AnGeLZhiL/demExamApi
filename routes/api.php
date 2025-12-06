@@ -12,6 +12,7 @@ use App\Http\Controllers\DatabaseController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\StatusController;
+use App\Http\Controllers\RoleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,28 +28,6 @@ use App\Http\Controllers\StatusController;
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
-
-//User
-Route::apiResource('users', UserController::class);
-Route::get('/users/{id}/event-accounts', [UserController::class, 'getEventAccounts']); //получить учетные записи заданного пользователя
-
-//EventAccount
-Route::apiResource('event-accounts', EventAccountController::class);
-
-//Module
-Route::apiResource('modules', ModuleController::class);
-
-//Server
-Route::apiResource('servers', ServerController::class);
-
-//Repository
-Route::apiResource('repositories', RepositoryController::class);
-
-//Database
-Route::apiResource('databases', DatabaseController::class);
-
-//File
-Route::apiResource('files', FileController::class);
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
@@ -67,8 +46,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('statuses', StatusController::class);
 
     //User
-    Route::apiResource('users', UserController::class);
     Route::get('/users/{id}/event-accounts', [UserController::class, 'getEventAccounts']); //получить учетные записи заданного пользователя
+    Route::get('/users', [UserController::class, 'index']);
+    Route::apiResource('users', UserController::class);
 
     //EventAccount
     Route::apiResource('event-accounts', EventAccountController::class);
@@ -87,5 +67,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     //File
     Route::apiResource('files', FileController::class);
+
+    //Role
+    Route::apiResource('roles', RoleController::class);
 });
 

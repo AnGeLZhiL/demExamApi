@@ -11,9 +11,30 @@ class UserController extends Controller
      * Display a listing of the resource. Отобразите список ресурсов.
      * получить список всех пользователей
      */
-    public function index()
+    public function index(Request $request)
     {
-        return User::with(['role', 'group'])->get();
+        $query = User::with(['group']);
+    
+        // Поиск по ФИО
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            
+            $query->where(function($q) use ($search) {
+                $q->where('last_name', 'ilike', "%{$search}%")
+                ->orWhere('first_name', 'ilike', "%{$search}%")
+                ->orWhere('middle_name', 'ilike', "%{$search}%");
+            });
+        }
+        
+        // Исключить пользователей уже в мероприятии
+        if ($request->has('not_in_event')) {
+            $eventId = $request->not_in_event;
+            $query->whereDoesntHave('eventAccounts', function($q) use ($eventId) {
+                $q->where('event_id', $eventId);
+            });
+        }
+        
+        return $query->get();
     }
 
     /**
@@ -26,7 +47,6 @@ class UserController extends Controller
             'last_name' => $request->last_name,
             'first_name' => $request->first_name,
             'middle_name' => $request->middle_name,
-            'role_id' => $request->role_id,
             'group_id' => $request->group_id
         ]);
         
@@ -39,7 +59,7 @@ class UserController extends Controller
      */
     public function show(string $id)
     {
-        $user = User::with(['role', 'group'])->find($id);
+        $user = User::with(['group'])->find($id);
         
         if (!$user) {
             return response()->json(['error' => 'User not found'], 404);
@@ -61,7 +81,7 @@ class UserController extends Controller
         }
         
         $user->update($request->only([
-            'last_name', 'first_name', 'middle_name', 'role_id', 'group_id'
+            'last_name', 'first_name', 'middle_name', 'group_id'
         ]));
         
         return $user;
@@ -92,6 +112,6 @@ class UserController extends Controller
             return response()->json(['error' => 'User not found'], 404);
         }
         
-        return $user->eventAccounts()->with(['event'])->get();
+        return $user->eventAccounts()->with(['event', 'role'])->get();
     }
 }
