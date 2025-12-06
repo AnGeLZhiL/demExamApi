@@ -18,7 +18,6 @@ class UserSeeder extends Seeder
             'last_name' => 'Иванов',
             'first_name' => 'Иван',
             'middle_name' => 'Иванович',
-            'role_id' => 1,
             'group_id' => null,
         ]);
 
@@ -27,7 +26,6 @@ class UserSeeder extends Seeder
             'last_name' => 'Петрова',
             'first_name' => 'Мария',
             'middle_name' => 'Сергеевна',
-            'role_id' => 2,
             'group_id' => null,
         ]);
 
@@ -35,14 +33,12 @@ class UserSeeder extends Seeder
         User::create([
             'last_name' => 'Сидоров',
             'first_name' => 'Алексей',
-            'role_id' => 3,
             'group_id' => 1,
         ]);
 
         User::create([
             'last_name' => 'Козлова',
             'first_name' => 'Анна',
-            'role_id' => 3,
             'group_id' => 2,
         ]);
     }

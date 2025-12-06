@@ -11,7 +11,7 @@ class EventAccount extends Model
 
     // Поля которые можно массово заполнять
     protected $fillable = [
-        'user_id', 'event_id', 'login', 'password', 'seat_number'
+        'user_id', 'event_id', 'login', 'password', 'seat_number', 'role_id'
     ];
 
     //Поля которые скрывать в API
@@ -29,6 +29,12 @@ class EventAccount extends Model
     public function event()
     {
         return $this->belongsTo(Event::class);
+    }
+
+    //роль привязана к учетной записи
+    public function role()
+    {
+        return $this->belongsTo(Role::class);
     }
 
     // учетная запись имеет много БД

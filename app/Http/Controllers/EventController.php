@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Event;
+use Carbon\Carbon;
 
 class EventController extends Controller
 {
@@ -57,13 +58,28 @@ class EventController extends Controller
      */
     public function store(Request $request)
     {
-        $event = Event::create([
-            'name' => $request->name,
-            'date' => $request->date,
-            'status_id' => $request->status_id
-        ]);
+        // 🔴 ПРОСТАЯ ПРОВЕРКА - ДОСТАТОЧНО ДЛЯ ДЕМО
+        if (!$request->name || !$request->date || !$request->status_id) {
+            return response()->json(['error' => 'Заполните все поля'], 422);
+        }
         
-        return response()->json($event, 201);
+        // 🔴 TIMESTAMP ПОДХОД - РЕШАЕТ ПРОБЛЕМУ ЧАСОВОГО ПОЯСА
+        try {
+            $date = Carbon::createFromTimestampMs($request->date)
+                        ->setTimezone('Europe/Moscow');
+            
+            $event = Event::create([
+                'name' => $request->name,
+                'date' => $date,
+                'status_id' => $request->status_id
+            ]);
+            
+            return response()->json($event, 201);
+            
+        } catch (\Exception $e) {
+            \Log::error('Ошибка создания мероприятия: ' . $e->getMessage());
+            return response()->json(['error' => 'Ошибка сервера'], 500);
+        }
     }
 
     /**

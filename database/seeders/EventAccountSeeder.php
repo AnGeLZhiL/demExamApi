@@ -7,6 +7,7 @@ use Illuminate\Database\Seeder;
 use App\Models\EventAccount;
 use App\Models\User;
 use App\Models\Event;
+use App\Models\Role;
 
 class EventAccountSeeder extends Seeder
 {
@@ -21,7 +22,8 @@ class EventAccountSeeder extends Seeder
             'event_id' => 1,
             'login' => 'ivanov_exam1',
             'password' => 'password123',
-            'seat_number' => 'A1'
+            'seat_number' => 'A1',
+            'role_id' => 1
         ]);
 
         // Учётная запись для пользователя 3 (Сидоров) в мероприятии 1
@@ -30,7 +32,8 @@ class EventAccountSeeder extends Seeder
             'event_id' => 1,
             'login' => 'sidorov_exam1',
             'password' => 'password456',
-            'seat_number' => 'A2'
+            'seat_number' => 'A2',
+            'role_id' => 2
         ]);
 
         // Учётная запись для пользователя 1 (Иванов) в мероприятии 2
@@ -39,7 +42,8 @@ class EventAccountSeeder extends Seeder
             'event_id' => 2,
             'login' => 'ivanov_exam2', 
             'password' => 'password789',
-            'seat_number' => 'B1'
+            'seat_number' => 'B1',
+            'role_id' => 3
         ]);
     }
 }

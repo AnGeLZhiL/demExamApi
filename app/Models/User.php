@@ -24,7 +24,6 @@ class User extends Authenticatable
         'middle_name',
         'passport_data',
         'birth_date',
-        'role_id',
         'group_id'
     ];
 
@@ -49,12 +48,6 @@ class User extends Authenticatable
     //     'password' => 'hashed',
     // ];
 
-    // у пользователя одна роль
-    public function role()
-    {
-        return $this->belongsTo(Role::class);
-    }
-
     // у пользователя одна группа
     public function group()
     {
@@ -71,5 +64,15 @@ class User extends Authenticatable
     public function events()
     {
         return $this->hasManyThrough(Event::class, EventAccount::class, 'user_id', 'id', 'id', 'event_id');
+    }
+
+    // получить роль пользователя в конкретном мероприятии
+    public function getRoleInEvent($eventId)
+    {
+        $account = $this->eventAccounts()
+                        ->where('event_id', $eventId)
+                        ->first();
+        
+        return $account ? $account->role : null;
     }
 }

@@ -17,6 +17,10 @@ class DatabaseSeeder extends Seeder
             StatusSeeder::class,
             GroupSeeder::class,
             TypeSeeder::class,
+            UserSeeder::class,
+            EventSeeder::class,
+            EventAccountSeeder::class,
+            ModuleSeeder::class
         ]);
     }
 }

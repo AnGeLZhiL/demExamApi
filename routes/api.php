@@ -65,5 +65,27 @@ Route::middleware('auth:sanctum')->group(function () {
     
     //Status
     Route::apiResource('statuses', StatusController::class);
+
+    //User
+    Route::apiResource('users', UserController::class);
+    Route::get('/users/{id}/event-accounts', [UserController::class, 'getEventAccounts']); //получить учетные записи заданного пользователя
+
+    //EventAccount
+    Route::apiResource('event-accounts', EventAccountController::class);
+
+    //Module
+    Route::apiResource('modules', ModuleController::class);
+
+    //Server
+    Route::apiResource('servers', ServerController::class);
+
+    //Repository
+    Route::apiResource('repositories', RepositoryController::class);
+
+    //Database
+    Route::apiResource('databases', DatabaseController::class);
+
+    //File
+    Route::apiResource('files', FileController::class);
 });
 
