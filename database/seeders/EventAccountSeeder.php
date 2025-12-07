@@ -17,37 +17,167 @@ class EventAccountSeeder extends Seeder
      */
     public function run(): void
     {
-        // Учётная запись для пользователя 1 (Иванов) в мероприятии 1
+        
+        // 1. Администратор Иванов (ID 1) - роль Администратор (ID 1)
         EventAccount::create([
             'user_id' => 1,
             'event_id' => 1,
-            'login' => 'ivanov_exam1',
-            //password123
-            'password' => Hash::make('password123'),
-            'seat_number' => 'A1',
+            'login' => 'ivanov_admin_exam1',
+            'password' => Hash::make('AdminPass123!'),
+            'password_plain' => 'AdminPass123!',
+            'seat_number' => null,
             'role_id' => 1
         ]);
-
-        // Учётная запись для пользователя 3 (Сидоров) в мероприятии 1
+        
+        // 2. Главный эксперт Петрова (ID 12) - роль Главный эксперт (ID 4)
         EventAccount::create([
-            'user_id' => 3, 
+            'user_id' => 12,
             'event_id' => 1,
-            'login' => 'sidorov_exam1',
-            //password456
-            'password' => Hash::make('password456'),
-            'seat_number' => 'A2',
+            'login' => 'petrova_lead_exam1',
+            'password' => Hash::make('LeadExpertPass!'),
+            'password_plain' => 'LeadExpertPass!',
+            'seat_number' => null,
+            'role_id' => 4
+        ]);
+        
+        // 3. Эксперт Сидоров (ID 4) - роль Эксперт (ID 2)
+        EventAccount::create([
+            'user_id' => 4,
+            'event_id' => 1,
+            'login' => 'sidorov_expert_exam1',
+            'password' => Hash::make('ExpertPass456'),
+            'password_plain' => 'ExpertPass456',
+            'seat_number' => null,
             'role_id' => 2
         ]);
-
-        // Учётная запись для пользователя 1 (Иванов) в мероприятии 2
+        
+        // 4. Технический эксперт Морозов (ID 14) - роль Технический эксперт (ID 5)
+        EventAccount::create([
+            'user_id' => 14,
+            'event_id' => 1,
+            'login' => 'morozov_tech_exam1',
+            'password' => Hash::make('TechPass789'),
+            'password_plain' => 'TechPass789',
+            'seat_number' => null,
+            'role_id' => 5
+        ]);
+        
+        // 5-8. Участники группы 9901 (ID 5-8)
+        $participantsExam1 = [
+            ['user_id' => 5, 'last_name' => 'Козлова', 'login' => 'kozlova_exam1', 'seat' => 'A1', 'pass' => 'Student001'],
+            ['user_id' => 6, 'last_name' => 'Белов', 'login' => 'belov_exam1', 'seat' => 'A2', 'pass' => 'Student002'],
+            ['user_id' => 7, 'last_name' => 'Соколова', 'login' => 'sokolova_exam1', 'seat' => 'A3', 'pass' => 'Student003'],
+            ['user_id' => 8, 'last_name' => 'Никитин', 'login' => 'nikitin_exam1', 'seat' => 'A4', 'pass' => 'Student004']
+        ];
+        
+        foreach ($participantsExam1 as $p) {
+            EventAccount::create([
+                'user_id' => $p['user_id'],
+                'event_id' => 1,
+                'login' => $p['login'],
+                'password' => Hash::make($p['pass']),
+                'password_plain' => $p['pass'],
+                'seat_number' => $p['seat'],
+                'role_id' => 3 // Участник
+            ]);
+            $this->command->info("   ✅ Участник {$p['last_name']} добавлен");
+        }
+        
+        // 1. Администратор Смирнов (ID 2) - роль Администратор (ID 1)
+        EventAccount::create([
+            'user_id' => 2,
+            'event_id' => 2,
+            'login' => 'smirnov_admin_exam2',
+            'password' => Hash::make('AdminPass456!'),
+            'password_plain' => 'AdminPass456!',
+            'seat_number' => null,
+            'role_id' => 1
+        ]);
+        
+        // 2. Главный эксперт Кузнецов (ID 13) - роль Главный эксперт (ID 4)
+        EventAccount::create([
+            'user_id' => 13,
+            'event_id' => 2,
+            'login' => 'kuznetsov_lead_exam2',
+            'password' => Hash::make('LeadExpertPass2!'),
+            'password_plain' => 'LeadExpertPass2!',
+            'seat_number' => null,
+            'role_id' => 4
+        ]);
+        
+        // 3. Эксперт Фролова (ID 3) - роль Эксперт (ID 2)
+        EventAccount::create([
+            'user_id' => 3,
+            'event_id' => 2,
+            'login' => 'frolova_expert_exam2',
+            'password' => Hash::make('ExpertPass789'),
+            'password_plain' => 'ExpertPass789',
+            'seat_number' => null,
+            'role_id' => 2
+        ]);
+        
+        // 4. Технический эксперт Захарова (ID 15) - роль Технический эксперт (ID 5)
+        EventAccount::create([
+            'user_id' => 15,
+            'event_id' => 2,
+            'login' => 'zakharova_tech_exam2',
+            'password' => Hash::make('TechPass999'),
+            'password_plain' => 'TechPass999',
+            'seat_number' => null,
+            'role_id' => 5
+        ]);
+        
+        // 5-8. Участники группы 9903 (ID 9-11)
+        $participantsExam2 = [
+            ['user_id' => 9, 'last_name' => 'Волкова', 'login' => 'volkova_exam2', 'seat' => 'B1', 'pass' => 'Student101'],
+            ['user_id' => 10, 'last_name' => 'Комаров', 'login' => 'komarov_exam2', 'seat' => 'B2', 'pass' => 'Student102'],
+            ['user_id' => 11, 'last_name' => 'Орлова', 'login' => 'orlova_exam2', 'seat' => 'B3', 'pass' => 'Student103']
+        ];
+        
+        foreach ($participantsExam2 as $p) {
+            EventAccount::create([
+                'user_id' => $p['user_id'],
+                'event_id' => 2,
+                'login' => $p['login'],
+                'password' => Hash::make($p['pass']),
+                'password_plain' => $p['pass'],
+                'seat_number' => $p['seat'],
+                'role_id' => 3 // Участник
+            ]);
+            $this->command->info("   ✅ Участник {$p['last_name']} добавлен");
+        }
+        
+        // Администратор Иванов также в мероприятии 2
         EventAccount::create([
             'user_id' => 1,
             'event_id' => 2,
-            'login' => 'ivanov_exam2', 
-            //password789
-            'password' => Hash::make('password789'),
-            'seat_number' => 'B1',
+            'login' => 'ivanov_admin_exam2',
+            'password' => Hash::make('AdminPass789!'),
+            'password_plain' => 'AdminPass789!',
+            'seat_number' => null,
+            'role_id' => 1
+        ]);
+        
+        // Участник Волкова также в мероприятии 1 (пересдача)
+        EventAccount::create([
+            'user_id' => 9,
+            'event_id' => 1,
+            'login' => 'volkova_retake_exam1',
+            'password' => Hash::make('RetakePass111'),
+            'password_plain' => 'RetakePass111',
+            'seat_number' => 'A5',
             'role_id' => 3
         ]);
-    }
+        
+        // Эксперт Фролова также в мероприятии 1 (помощник)
+        EventAccount::create([
+            'user_id' => 3,
+            'event_id' => 1,
+            'login' => 'frolova_assist_exam1',
+            'password' => Hash::make('AssistPass222'),
+            'password_plain' => 'AssistPass222',
+            'seat_number' => null,
+            'role_id' => 2
+        ]);
+}
 }

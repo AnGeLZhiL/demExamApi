@@ -52,6 +52,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     //EventAccount
     Route::apiResource('event-accounts', EventAccountController::class);
+    Route::get('events/{eventId}/event-accounts', [EventAccountController::class, 'getEventAccounts']);
+    Route::put('events/{eventId}/users/{userId}/seat', [EventAccountController::class, 'updateSeat']);
 
     //Module
     Route::apiResource('modules', ModuleController::class);

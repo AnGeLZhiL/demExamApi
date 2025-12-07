@@ -11,13 +11,46 @@ class EventAccount extends Model
 
     // Поля которые можно массово заполнять
     protected $fillable = [
-        'user_id', 'event_id', 'login', 'password', 'seat_number', 'role_id'
+        'user_id', 'event_id', 'login', 'password', 'password_plain', 'seat_number', 'role_id'
     ];
 
     //Поля которые скрывать в API
     protected $hidden = [
-        'password' 
+        'password'
     ];
+
+    protected $appends = [
+        'has_password'
+    ];
+
+    // 🔴 ВАЖНО: При маппинге в массив
+    public function toArray()
+    {
+        $array = parent::toArray();
+        
+        // Отправляем сырой пароль вместо хэша
+        if (isset($array['password_plain'])) {
+            $array['password'] = $array['password_plain'];
+        }
+        
+        // Удаляем password_plain из ответа (опционально)
+        unset($array['password_plain']);
+        
+        return $array;
+    }
+
+    // Геттер для проверки наличия пароля
+    public function getHasPasswordAttribute()
+    {
+        return !empty($this->password_plain);
+    }
+
+    // 🔴 Метод для безопасного получения пароля (с проверкой прав)
+    public function getPasswordForDisplay()
+    {
+        // Здесь можно добавить логику проверки прав
+        return $this->password_plain;
+    }
 
     // учетная запись имеет одного пользователя
     public function user()

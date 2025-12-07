@@ -59,7 +59,8 @@ class EventAccountController extends Controller
             'user_id' => $validated['user_id'],
             'event_id' => $validated['event_id'],
             'login' => $login,
-            'password' => $hashedPassword, // ← СОХРАНЯЕМ ХЭШ
+            'password' => $hashedPassword, // 🔴 поле должно называться 'password'
+            'password_plain' => $rawPassword,
             'seat_number' => $validated['seat_number'] ?? null,
             'role_id' => $validated['role_id'] ?? 1
         ]);
@@ -70,9 +71,9 @@ class EventAccountController extends Controller
         return response()->json([
             'message' => 'Учетная запись успешно создана',
             'data' => $account,
-            'credentials' => [  // ← ВОЗВРАЩАЕМ КРЕДЫ ДЛЯ ВЫДАЧИ
+            'credentials' => [
                 'login' => $login,
-                'password' => $rawPassword, // ← ОРИГИНАЛЬНЫЙ пароль
+                'password' => $rawPassword,
                 'event_name' => $event->name,
                 'user_name' => $user->last_name . ' ' . $user->first_name
             ]
@@ -106,11 +107,18 @@ class EventAccountController extends Controller
             return response()->json(['error' => 'Event account not found'], 404);
         }
         
-        // Разрешаем обновлять login, password, seat_number, role_id
-        $account->update($request->only([
-            'login', 'password', 'seat_number', 'role_id' // ← ДОБАВИТЬ 'role_id'
-        ]));
-
+        // Обновляем только разрешенные поля
+        $allowedFields = ['login', 'seat_number', 'role_id'];
+        
+        $data = $request->only($allowedFields);
+        
+        // Если пришел новый пароль
+        if ($request->has('password_plain') && !empty($request->password_plain)) {
+            $data['password_plain'] = $request->password_plain;
+            $data['password_hash'] = Hash::make($request->password_plain);
+        }
+        
+        $account->update($data);
         $account->load(['user', 'event', 'role']);
         
         return $account;
@@ -189,16 +197,46 @@ class EventAccountController extends Controller
         
         return $login;
     }
+
+    /**
+     * Получить учетные записи мероприятия с паролями
+     */
+    public function getEventAccounts($eventId)
+    {
+        $accounts = EventAccount::where('event_id', $eventId)
+            ->with(['user', 'role'])
+            ->get()
+            ->map(function ($account) {
+                return [
+                    'id' => $account->id,
+                    'user_id' => $account->user_id,
+                    'login' => $account->login,
+                    'password' => $account->password_plain, // 🔴 отправляем сырой пароль
+                    'password_plain' => $account->password_plain,
+                    'seat_number' => $account->seat_number,
+                    'role' => $account->role,
+                    'user' => $account->user,
+                    'created_at' => $account->created_at,
+                    'updated_at' => $account->updated_at
+                ];
+            });
+        
+        return response()->json($accounts);
+    }
     
     // 🔴 НОВЫЙ МЕТОД: Генерация "сырого" пароля
     private function generateRawPassword(): string
     {
-        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
         $password = '';
         
-        $password .= rand(0, 9); // цифра
-        $password .= chr(rand(65, 90)); // заглавная буква
+        // Гарантируем разные типы символов
+        $password .= chr(rand(48, 57)); // цифра 0-9
+        $password .= chr(rand(65, 90)); // заглавная буква A-Z
+        $password .= chr(rand(97, 122)); // строчная буква a-z
+        $password .= '!@#$%^&*'[rand(0, 7)]; // специальный символ
         
+        // Добавляем случайные символы до длины 12
         for ($i = 0; $i < 8; $i++) {
             $password .= $chars[rand(0, strlen($chars) - 1)];
         }
