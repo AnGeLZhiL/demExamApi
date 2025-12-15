@@ -16,14 +16,14 @@ class ModuleSeeder extends Seeder
         Module::create([
             'name' => 'Модуль проектирования',
             'event_id' => 1,
-            'type_id' => 5,
+            // 'type_id' => 5,
             'status_id' => 1, // Запланирован
         ]);
 
         Module::create([
             'name' => 'Модуль работы с PostgreSQL', 
             'event_id' => 2, 
-            'type_id' => 4, 
+            // 'type_id' => 4, 
             'status_id' => 2, // Активен
         ]);
     }

@@ -10,8 +10,13 @@ class Module extends Model
     use HasFactory;
 
     //атрибуты, которые можно массово присваивать.
+    // protected $fillable = [
+    //     'name', 'event_id', 'type_id', 'status_id'
+    // ];
+
+    //атрибуты, которые можно массово присваивать.
     protected $fillable = [
-        'name', 'event_id', 'type_id', 'status_id'
+        'name', 'event_id', 'status_id'
     ];
 
     // модуль относится к одному  мероприятию
@@ -21,10 +26,10 @@ class Module extends Model
     }
 
     // модуль имеет один тип
-    public function type()
-    {
-        return $this->belongsTo(Type::class);
-    }
+    // public function type()
+    // {
+    //     return $this->belongsTo(Type::class);
+    // }
 
     // модуль имеет один статус
     public function status()

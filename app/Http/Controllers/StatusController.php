@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Status;
+use App\Models\Context;
 
 class StatusController extends Controller
 {
@@ -11,9 +12,24 @@ class StatusController extends Controller
      * Display a listing of the resource. Отобразите список ресурсов.
      * получить список всех статусов
      */
-    public function index()
+    public function index(Request $request)
     {
-        return Status::select('id', 'name')->get();
+        $query = Status::with('context');
+        
+        // Фильтр по контексту (если передан)
+        if ($request->has('context')) {
+            $context = Context::where('name', $request->context)->first();
+            if ($context) {
+                $query->where('context_id', $context->id);
+            }
+        }
+        
+        // Фильтр по ID контекста (если передан напрямую)
+        if ($request->has('context_id')) {
+            $query->where('context_id', $request->context_id);
+        }
+        
+        return $query->get();
     }
 
     /**
@@ -22,9 +38,12 @@ class StatusController extends Controller
      */
     public function store(Request $request)
     {
-        $status = Status::create([
-            'name' => $request->name
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'context_id' => 'nullable|exists:contexts,id'
         ]);
+        
+        $status = Status::create($validated);
         
         return response()->json($status, 201);
     }
@@ -35,7 +54,7 @@ class StatusController extends Controller
      */
     public function show(string $id)
     {
-        $status = Status::find($id);
+        $status = Status::with('context')->find($id);
         
         if (!$status) {
             return response()->json(['error' => 'Status not found'], 404);
@@ -56,9 +75,12 @@ class StatusController extends Controller
             return response()->json(['error' => 'Status not found'], 404);
         }
         
-        $status->update($request->only([
-            'name'
-        ]));
+        $validated = $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'context_id' => 'nullable|exists:contexts,id'
+        ]);
+        
+        $status->update($validated);
         
         return $status;
     }
@@ -77,5 +99,19 @@ class StatusController extends Controller
         
         $status->delete();
         return response()->noContent();
+    }
+
+    /**
+     * Получить статусы по имени контекста
+     */
+    public function getByContext(string $contextName)
+    {
+        $context = Context::where('name', $contextName)->first();
+        
+        if (!$context) {
+            return response()->json(['error' => 'Context not found'], 404);
+        }
+        
+        return Status::where('context_id', $context->id)->get();
     }
 }

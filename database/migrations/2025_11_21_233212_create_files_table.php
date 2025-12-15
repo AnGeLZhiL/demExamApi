@@ -17,8 +17,12 @@ return new class extends Migration
             $table->string('path'); // путь к файлу на сервере
             $table->string('size')->nullable(); // размер файла
             $table->string('mime_type')->nullable(); // тип файла
-            $table->foreignId('module_id')->constrained('modules');
-            $table->foreignId('event_account_id')->constrained('event_accounts');
+            $table->foreignId('module_id')
+                ->constrained('modules')
+                ->onDelete('cascade');
+            $table->foreignId('event_account_id')
+                ->constrained('event_accounts')
+                ->onDelete('set null');
             $table->boolean('is_public')->default(true); // публичность
             $table->timestamps();
         });

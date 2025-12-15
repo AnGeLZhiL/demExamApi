@@ -88,7 +88,20 @@ class EventController extends Controller
      */
     public function show(string $id)
     {
-        $event = Event::with(['status', 'modules'])->find($id);
+        $event = Event::with([
+        'status', // статус мероприятия
+        'modules' => function($query) {
+                // Модули с их типами и статусами
+                $query->with([
+                    // 'type' => function($q) {
+                    //     $q->with('context'); // тип с контекстом
+                    // },
+                    'status' => function($q) {
+                        $q->with('context'); // статус с контекстом
+                    }
+                ]);
+            }
+        ])->find($id);
         
         if (!$event) {
             return response()->json(['error' => 'Event not found'], 404);
@@ -136,12 +149,22 @@ class EventController extends Controller
     public function getModules($id)
     {
         $event = Event::find($id);
-        
+    
         if (!$event) {
             return response()->json(['error' => 'Event not found'], 404);
         }
         
-        return $event->modules()->with(['type', 'status'])->get();
+        // Модули с типами и статусами
+        return $event->modules()
+            ->with([
+                // 'type' => function($query) {
+                //     $query->with('context'); // тип с контекстом
+                // },
+                'status' => function($query) {
+                    $query->with('context'); // статус с контекстом
+                }
+            ])
+            ->get();
     }
 
     //получение всех пользователей, которые относятся к конкретному мероприятию, с фильтрацией

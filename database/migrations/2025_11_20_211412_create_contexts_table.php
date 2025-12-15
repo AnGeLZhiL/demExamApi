@@ -11,13 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('event_accounts', function (Blueprint $table) {
+        Schema::create('contexts', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained('users');
-            $table->foreignId('event_id')->constrained('events');
-            $table->string('login')->unique();
-            $table->string('password');
-            $table->string('seat_number')->nullable();
+            $table->string('name')->unique();
             $table->timestamps();
         });
     }
@@ -27,6 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('event_accounts');
+        Schema::dropIfExists('contexts');
     }
 };

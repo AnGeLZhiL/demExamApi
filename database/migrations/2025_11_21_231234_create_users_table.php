@@ -18,8 +18,12 @@ return new class extends Migration
             $table->string('middle_name')->nullable();
             $table->string('passport_data')->nullable();
             $table->date('birth_date')->nullable();
-            $table->foreignId('role_id')->constrained('roles');
-            $table->foreignId('group_id')->nullable()->constrained('groups');
+            $table->foreignId('role_id')
+                ->constrained('roles')
+                ->onDelete('set null');
+            $table->foreignId('group_id')->nullable()
+                ->constrained('groups')
+                ->onDelete('set null');
             $table->timestamps();
         });
     }

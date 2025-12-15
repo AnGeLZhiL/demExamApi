@@ -11,12 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('modules', function (Blueprint $table) {
+        Schema::create('system_roles', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->foreignId('event_id')->constrained('events');
-            $table->foreignId('type_id')->constrained('types');
-            $table->foreignId('status_id')->constrained('statuses');
+            $table->string('name')->unique();
             $table->timestamps();
         });
     }
@@ -26,6 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('modules');
+        Schema::dropIfExists('system_roles');
     }
 };

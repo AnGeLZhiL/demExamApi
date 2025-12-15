@@ -13,7 +13,7 @@ class ModuleController extends Controller
      */
     public function index()
     {
-        return Module::with(['event', 'type', 'status'])->get();
+        return Module::with(['event', /*'type',*/ 'status'])->get();
     }
 
     /**
@@ -22,13 +22,14 @@ class ModuleController extends Controller
      */
     public function store(Request $request)
     {
-        $module = Module::create([
-            'name' => $request->name,
-            'event_id' => $request->event_id,
-            'type_id' => $request->type_id,
-            'status_id' => $request->status_id
+        $validated = $request->validate([
+            'name' => 'required|string|min:2|max:255',
+            'event_id' => 'required|exists:events,id',
+            // 'type_id' => 'required|exists:types,id',
+            'status_id' => 'required|exists:statuses,id'
         ]);
-        
+    
+        $module = Module::create($validated);
         return response()->json($module, 201);
     }
 
@@ -38,7 +39,7 @@ class ModuleController extends Controller
      */
     public function show(string $id)
     {
-        $module = Module::with(['event', 'type', 'status'])->find($id);
+        $module = Module::with(['event', /*'type',*/ 'status'])->find($id);
         
         if (!$module) {
             return response()->json(['error' => 'Module not found'], 404);
@@ -60,7 +61,7 @@ class ModuleController extends Controller
         }
         
         $module->update($request->only([
-            'name', 'event_id', 'type_id', 'status_id'
+            'name', 'event_id', /*'type_id',*/ 'status_id'
         ]));
         
         return $module;

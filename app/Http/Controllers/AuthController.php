@@ -21,8 +21,10 @@ class AuthController extends Controller
             'password' => 'required|string', 
         ]);
 
-        // поиск учетной записи по логину
-        $eventAccount = EventAccount::where('login', $request->login)->first();
+        // поиск учетной записи по логину с загрузкой связей
+        $eventAccount = EventAccount::with(['user.systemRole', 'role'])
+            ->where('login', $request->login)
+            ->first();
 
         // проверка совпадения пароля
         if (!$eventAccount || !Hash::check($request->password, $eventAccount->password)) {
@@ -31,8 +33,7 @@ class AuthController extends Controller
             ]);
         }
 
-        // результат поиска пользователя
-        $user = User::find($eventAccount->user_id);
+        $user = $eventAccount->user;
     
         if (!$user) {
             throw ValidationException::withMessages([
@@ -40,33 +41,54 @@ class AuthController extends Controller
             ]);
         }
 
-        // 🔴 ПОЛУЧАЕМ РОЛЬ ИЗ УЧЕТНОЙ ЗАПИСИ, А НЕ ИЗ ПОЛЬЗОВАТЕЛЯ
-        // Загружаем роль учетной записи
-        $eventAccount->load('role');
-        
         // Создание токена
-        $token = $user->createToken('event-auth')->plainTextToken;
+        $token = $user->createToken('auth-token')->plainTextToken;
 
-        // 🔴 ОБНОВЛЯЕМ ОТВЕТ
-        return response()->json([
+        // Определяем тип учетки
+        $isSystemAccount = is_null($eventAccount->event_id);
+        
+        // Формируем базовый ответ
+        $response = [
             'token' => $token,
             'user' => [
                 'id' => $user->id,
                 'last_name' => $user->last_name,
                 'first_name' => $user->first_name,
                 'middle_name' => $user->middle_name,
-                // 'role_id' => $user->role_id, // ← УДАЛИТЬ ЭТУ СТРОКУ
-                'group_id' => $user->group_id
+                'group_id' => $user->group_id,
+                'system_role' => $user->systemRole // системная роль пользователя
             ],
-            'event_account' => [
+            'is_system_account' => $isSystemAccount,
+        ];
+
+        // Добавляем системную роль, если она есть
+        if ($user->systemRole) {
+            $response['system_role'] = $user->systemRole;
+        }
+
+        if ($isSystemAccount) {
+            // СИСТЕМНАЯ УЧЕТКА (админ/наблюдатель)
+            $response['message'] = 'Вход в систему как администратор';
+        } else {
+            // УЧЕТКА МЕРОПРИЯТИЯ
+            $response['event_account'] = [
                 'id' => $eventAccount->id,
                 'event_id' => $eventAccount->event_id,
                 'login' => $eventAccount->login,
                 'seat_number' => $eventAccount->seat_number,
-                'role_id' => $eventAccount->role_id, // ← ДОБАВИТЬ РОЛЬ ИЗ УЧЕТНОЙ ЗАПИСИ
-                'role_name' => $eventAccount->role->name ?? null // ← ИМЯ РОЛИ
-            ]
-        ]);
+                'role_id' => $eventAccount->role_id,
+                'role_name' => $eventAccount->role->name ?? null
+            ];
+            
+            // Добавляем роль мероприятия
+            if ($eventAccount->role) {
+                $response['event_role'] = $eventAccount->role;
+            }
+            
+            $response['message'] = 'Вход в мероприятие';
+        }
+
+        return response()->json($response);
     }
 
     /**
@@ -86,21 +108,47 @@ class AuthController extends Controller
      */
     public function user(Request $request)
     {
-        $user = $request->user();
+        $user = $request->user()->load('systemRole');
     
-        // Находим активную учетную запись пользователя
-        // (предполагаем что пользователь авторизован через eventAccount)
-        // Это зависит от вашей логики авторизации
+        // Находим последнюю учетную запись пользователя
+        $eventAccount = EventAccount::where('user_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->with('role')
+            ->first();
         
-        return response()->json([
+        $response = [
             'user' => [
                 'id' => $user->id,
                 'last_name' => $user->last_name,
                 'first_name' => $user->first_name,
                 'middle_name' => $user->middle_name,
-                'group_id' => $user->group_id
-                // role_id больше нет
+                'group_id' => $user->group_id,
+                'system_role' => $user->systemRole
             ]
-        ]);
+        ];
+        
+        if ($eventAccount) {
+            $response['is_system_account'] = is_null($eventAccount->event_id);
+            
+            // Добавляем системную роль
+            if ($user->systemRole) {
+                $response['system_role'] = $user->systemRole;
+            }
+            
+            if (!is_null($eventAccount->event_id)) {
+                $response['event_account'] = [
+                    'id' => $eventAccount->id,
+                    'event_id' => $eventAccount->event_id,
+                    'role_id' => $eventAccount->role_id,
+                    'role_name' => $eventAccount->role->name ?? null
+                ];
+                
+                if ($eventAccount->role) {
+                    $response['event_role'] = $eventAccount->role;
+                }
+            }
+        }
+        
+        return response()->json($response);
     }
 }

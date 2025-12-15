@@ -14,10 +14,18 @@ return new class extends Migration
         Schema::create('databases', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->foreignId('server_id')->constrained('servers');
-            $table->foreignId('type_id')->constrained('types');
-            $table->foreignId('event_account_id')->constrained('event_accounts');
-            $table->foreignId('module_id')->constrained('modules');
+            $table->foreignId('server_id')
+                ->constrained('servers')
+                ->onDelete('set null');
+            $table->foreignId('type_id')
+                ->constrained('types')
+                ->onDelete('set null');
+            $table->foreignId('event_account_id')
+                ->constrained('event_accounts')
+                ->onDelete('cascade');
+            $table->foreignId('module_id')
+                ->constrained('modules')
+                ->onDelete('cascade');
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });

@@ -15,7 +15,9 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->dateTime('date');
-            $table->foreignId('status_id')->constrained('statuses');
+            $table->foreignId('status_id')
+                ->constrained('statuses')
+                ->onDelete('set null');
             $table->timestamps();
         });
     }

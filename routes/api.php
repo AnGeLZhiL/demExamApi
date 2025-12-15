@@ -13,6 +13,9 @@ use App\Http\Controllers\FileController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\StatusController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\TypeController;
+use App\Http\Controllers\ContextController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -35,6 +38,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Authentication
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
+
+    // Context
+    Route::apiResource('contexts', ContextController::class);
     
     //Event
     Route::apiResource('events', EventController::class);
@@ -44,6 +50,11 @@ Route::middleware('auth:sanctum')->group(function () {
     
     //Status
     Route::apiResource('statuses', StatusController::class);
+    Route::get('/statuses/context/{contextName}', [StatusController::class, 'getByContext']);
+
+    // Type
+    Route::apiResource('types', TypeController::class);
+    Route::get('/types/context/{contextName}', [TypeController::class, 'getByContext']);
 
     //User
     Route::get('/users/{id}/event-accounts', [UserController::class, 'getEventAccounts']); //получить учетные записи заданного пользователя
