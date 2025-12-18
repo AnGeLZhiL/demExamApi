@@ -4,9 +4,17 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Repository;
+use App\Services\RepositoryService;
 
 class RepositoryController extends Controller
 {
+    protected $repositoryService;
+
+    public function __construct(RepositoryService $repositoryService)
+    {
+        $this->repositoryService = $repositoryService;
+    }
+
     /**
      * Display a listing of the resource. Отобразите список ресурсов.
      * получить список репозиториев
@@ -63,11 +71,72 @@ class RepositoryController extends Controller
             return response()->json(['error' => 'Repository not found'], 404);
         }
         
+        // Обновляем только is_active, статус будет автоматически меняться
         $repository->update($request->only([
-            'name', 'url', 'is_active', 'is_public'
+            'is_active'
+            // Не обновляем status здесь, он зависит от is_active
         ]));
         
-        return $repository;
+        // Если меняем is_active, обновляем статус
+        if ($request->has('is_active')) {
+            $this->updateRepositoryStatusBasedOnActive($repository);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'repository' => $repository->load(['server', 'type', 'eventAccount.user', 'module', 'status'])
+        ]);
+    }
+
+    /**
+     * Обновить статус репозитория в зависимости от is_active
+     */
+    private function updateRepositoryStatusBasedOnActive(Repository $repository)
+    {
+        $activeStatusId = $this->getActiveStatusId();
+        $inactiveStatusId = $this->getInactiveStatusId();
+        
+        if ($repository->is_active && $activeStatusId) {
+            $repository->update(['status_id' => $activeStatusId]);
+        } elseif (!$repository->is_active && $inactiveStatusId) {
+            $repository->update(['status_id' => $inactiveStatusId]);
+        }
+    }
+
+    /**
+     * Получить ID статуса "Активен" для репозиториев
+     */
+    private function getActiveStatusId()
+    {
+        $repositoryContext = \App\Models\Context::where('name', 'repository')->first();
+        
+        if (!$repositoryContext) {
+            return null;
+        }
+        
+        $activeStatus = \App\Models\Status::where('name', 'Активен')
+            ->where('context_id', $repositoryContext->id)
+            ->first();
+        
+        return $activeStatus ? $activeStatus->id : null;
+    }
+
+    /**
+     * Получить ID статуса "Отключен" для репозиториев
+     */
+    private function getInactiveStatusId()
+    {
+        $repositoryContext = \App\Models\Context::where('name', 'repository')->first();
+        
+        if (!$repositoryContext) {
+            return null;
+        }
+        
+        $inactiveStatus = \App\Models\Status::where('name', 'Отключен')
+            ->where('context_id', $repositoryContext->id)
+            ->first();
+        
+        return $inactiveStatus ? $inactiveStatus->id : null;
     }
 
     /**
@@ -84,5 +153,87 @@ class RepositoryController extends Controller
         
         $repository->delete();
         return response()->noContent();
+    }
+
+    /**
+     * Создать репозитории для всех участников модуля
+     */
+    public function createForModule($moduleId, Request $request)
+    {
+        try {
+            $results = $this->repositoryService->createRepositoriesForModule($moduleId);
+            
+            return response()->json([
+                'success' => true,
+                'message' => "Создано {$results['successful']} репозиториев, ошибок: {$results['failed']}",
+                'data' => $results
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    /**
+     * Получить репозитории модуля
+     */
+    public function getByModule($moduleId)
+    {
+        try {
+            $repositories = $this->repositoryService->getModuleRepositories($moduleId);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $repositories
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    /**
+     * Тест подключения к Gogs
+     */
+    public function testGogsConnection(Request $request)
+    {
+        // Для mock-режима
+        if (config('services.gogs.mock')) {
+            return response()->json([
+                'status' => 'connected',
+                'message' => 'Mock Gogs сервер доступен',
+                'version' => '1.16.9',
+                'mock' => true
+            ]);
+        }
+        
+        // Для реального Gogs
+        try {
+            $response = Http::withToken(config('services.gogs.token'))
+                ->get(config('services.gogs.url') . '/api/v1/version');
+                
+            if ($response->successful()) {
+                return response()->json([
+                    'status' => 'connected',
+                    'message' => 'Gogs сервер доступен',
+                    'version' => $response->json()['version'],
+                    'mock' => false
+                ]);
+            } else {
+                throw new \Exception('Ошибка подключения');
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'mock' => false
+            ], 500);
+        }
     }
 }

@@ -17,7 +17,7 @@ return new class extends Migration
             $table->foreignId('type_id')->constrained('types'); // 'git', 'database'
             $table->string('url');
             $table->integer('port')->nullable();
-            $table->text('api_token')->nullable();
+            //$table->text('api_token')->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });

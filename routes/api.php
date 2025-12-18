@@ -15,6 +15,8 @@ use App\Http\Controllers\StatusController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\TypeController;
 use App\Http\Controllers\ContextController;
+use App\Http\Controllers\GogsController;
+use App\Http\Controllers\ModuleRepositoryController;
 
 
 /*
@@ -33,6 +35,8 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 Route::post('/login', [AuthController::class, 'login']);
+
+
 Route::middleware('auth:sanctum')->group(function () {
 
     // Authentication
@@ -74,9 +78,28 @@ Route::middleware('auth:sanctum')->group(function () {
 
     //Repository
     Route::apiResource('repositories', RepositoryController::class);
+    // Mock API для Gogs
+    Route::post('/modules/{module}/repositories/create-all', [RepositoryController::class, 'createForModule']);
+    Route::get('/modules/{module}/repositories', [RepositoryController::class, 'getByModule']);
+    Route::post('/gogs/test-connection', [RepositoryController::class, 'testGogsConnection']);
 
-    //Database
+    //Database - ОБРАТИТЕ ВНИМАНИЕ НА ПОРЯДОК!
+    // Тест подключения к PostgreSQL (публичный)
+    Route::get('/databases/test-connection', [DatabaseController::class, 'testConnection']);
+
+    // Тест создания БД (публичный)
+    Route::post('/modules/{module}/databases/create-for-participants', [DatabaseController::class, 'createForModule']);
+
+    // Просмотр БД модуля (публичный)
+    Route::get('/modules/{module}/databases', [DatabaseController::class, 'getByModule']);
+    
+    // Основной ресурсный маршрут (должен быть ПОСЛЕ специфичных)
     Route::apiResource('databases', DatabaseController::class);
+    
+    // Дополнительные маршруты ПОСЛЕ ресурсных
+    Route::get('/databases/{id}/status', [DatabaseController::class, 'checkDatabaseStatus']);
+    Route::post('/databases/{id}/create-real', [DatabaseController::class, 'createRealDatabase']);
+    Route::delete('/databases/{id}/drop-real', [DatabaseController::class, 'dropRealDatabase']);
 
     //File
     Route::apiResource('files', FileController::class);
@@ -84,4 +107,3 @@ Route::middleware('auth:sanctum')->group(function () {
     //Role
     Route::apiResource('roles', RoleController::class);
 });
-

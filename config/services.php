@@ -30,5 +30,13 @@ return [
         'secret' => env('AWS_SECRET_ACCESS_KEY'),
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
+    'gogs' => [
+        'enabled' => env('GOGS_ENABLED', false),
+        'mock' => env('GOGS_MOCK', true),
+        'url' => env('GOGS_URL', 'http://localhost:3000'),
+        'ssh_url' => env('GOGS_SSH_URL', 'git@localhost:10022'),
+        'token' => env('GOGS_TOKEN', ''),
+        'admin' => env('GOGS_ADMIN', 'admin'),
+    ],
 
 ];
