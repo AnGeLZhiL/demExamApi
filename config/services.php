@@ -31,12 +31,28 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
     'gogs' => [
-        'enabled' => env('GOGS_ENABLED', false),
-        'mock' => env('GOGS_MOCK', true),
-        'url' => env('GOGS_URL', 'http://localhost:3000'),
-        'ssh_url' => env('GOGS_SSH_URL', 'git@localhost:10022'),
-        'token' => env('GOGS_TOKEN', ''),
-        'admin' => env('GOGS_ADMIN', 'admin'),
+        'url' => env('GOGS_URL', 'http://213441fe8ea4.vps.myjino.ru:3000'),
+        'api_token' => env('GOGS_API_TOKEN', '9252159489cf6b1f3cb6e1575010d2db103b10b8'),
+        'admin_username' => env('GOGS_ADMIN_USERNAME', 'adminangelina'),
+        'admin_email' => env('GOGS_ADMIN_EMAIL', 'angelina.zhilyakova.2002@mail.ru'),
+        'org_prefix' => env('GOGS_ORG_PREFIX', 'exam'),
+        'mock' => env('GOGS_MOCK', false),
+        'repo' => [
+            'visibility' => 'private',
+            'auto_init' => true,
+            'default_branch' => 'main',
+        ],
+        'user' => [
+            'password_length' => 10,
+            'email_domain' => '@exam.demo.local',
+            'send_notify' => false,
+        ],
+        'timeout' => 30,
+        'retry_attempts' => 2,
+        'headers' => [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+        ],
     ],
 
 ];

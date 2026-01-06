@@ -7,6 +7,8 @@ use App\Models\EventAccount;
 use App\Models\User;
 use App\Models\Event;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class EventAccountController extends Controller
 {
@@ -28,7 +30,7 @@ class EventAccountController extends Controller
         // Валидация - только необходимые поля
         $validated = $request->validate([
             'user_id' => 'required|exists:users,id',
-            'event_id' => 'required|exists:events,id',
+            'event_id' => 'nullable|exists:events,id',
             'seat_number' => 'nullable|string|max:10',
             'role_id' => 'nullable|exists:roles,id' // ← ДОБАВИТЬ ЭТУ СТРОКУ
         ]);
@@ -76,6 +78,67 @@ class EventAccountController extends Controller
                 'password' => $rawPassword,
                 'event_name' => $event->name,
                 'user_name' => $user->last_name . ' ' . $user->first_name
+            ]
+        ], 201);
+    }
+
+    /**
+     * создание учетной записи системного пользователя
+     */
+    public function storeSystemAccount(Request $request)
+    {
+        $validated = $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'role_id' => 'required|in:5,6',
+            'seat_number' => 'nullable|string|max:10',
+        ]);
+
+        // Проверка на дубликат (как у вас уже есть)
+        $existingSystemAccount = EventAccount::where('user_id', $validated['user_id'])
+            ->whereNull('event_id')
+            ->where('role_id', $validated['role_id'])
+            ->first();
+
+        if ($existingSystemAccount) {
+            return response()->json([
+                'message' => 'У пользователя уже есть системная учётная запись для этой роли',
+                'error' => 'system_account_exists_for_role',
+                'data' => $existingSystemAccount->load(['user', 'role']),
+            ], 409);
+        }
+
+        $user = User::find($validated['user_id']);
+        if (!$user) {
+            return response()->json(['error' => 'Пользователь не найден'], 404);
+        }
+
+        // Генерируем чистый пароль (как у вас уже есть)
+        $rawPassword = $this->generateRawPassword(); // ваша функция генерации
+        $hashedPassword = Hash::make($rawPassword);
+
+        $login = $this->generateSystemLogin($user);
+
+
+        // Создаём учётную запись
+        $account = EventAccount::create([
+            'user_id' => $validated['user_id'],
+            'event_id' => null,
+            'login' => $login,
+            'password' => $hashedPassword,
+            'seat_number' => $validated['seat_number'] ?? null,
+            'role_id' => $validated['role_id'],
+        ]);
+
+        $account->load(['user', 'role']);
+
+
+        return response()->json([
+            'message' => 'Системная учётная запись создана',
+            'data' => $account,
+            'credentials' => [
+                'login' => $login,
+                'raw_password' => $rawPassword, // <-- ВАЖНО: отдаём чистый пароль!
+                'hashed_password' => $hashedPassword, // можно не отдавать, но для отладки полезно
             ]
         ], 201);
     }
@@ -138,6 +201,120 @@ class EventAccountController extends Controller
         
         $account->delete();
         return response()->noContent();
+    }
+
+    /**
+     * Обновление системной учётной записи
+     */
+    public function updateSystemAccount(Request $request, $userId)
+    {
+        \Log::info('=== UPDATE SYSTEM ACCOUNT ===');
+        \Log::info('User ID: ' . $userId);
+        \Log::info('Request data:', $request->all());
+
+        try {
+            // 1. Валидация
+            $validated = $request->validate([
+                'role_id' => 'required|in:5,6',
+            ]);
+
+            // 2. Находим пользователя
+            $user = User::find($userId);
+            if (!$user) {
+                return response()->json([
+                    'message' => 'Пользователь не найден',
+                    'error' => 'user_not_found'
+                ], 404);
+            }
+
+            // 3. Находим системные аккаунты пользователя
+            $systemAccounts = EventAccount::where('user_id', $userId)
+                ->whereNull('event_id')
+                ->get();
+
+            \Log::info('Найдено системных аккаунтов: ' . $systemAccounts->count());
+
+            // 4. Если у пользователя нет системных аккаунтов
+            if ($systemAccounts->isEmpty()) {
+                \Log::info('У пользователя нет системных аккаунтов, создаем новый');
+                
+                // Проверяем, можно ли создать системный аккаунт
+                $existingForRole = EventAccount::where('user_id', $userId)
+                    ->whereNull('event_id')
+                    ->where('role_id', $validated['role_id'])
+                    ->first();
+                    
+                if ($existingForRole) {
+                    return response()->json([
+                        'message' => 'У пользователя уже есть системная учётная запись для этой роли',
+                        'error' => 'system_account_exists_for_role',
+                        'data' => $existingForRole->load(['user', 'role'])
+                    ], 409);
+                }
+                
+                // Создаем новый системный аккаунт
+                $rawPassword = $this->generateRawPassword();
+                $hashedPassword = Hash::make($rawPassword);
+                $login = $this->generateSystemLogin($user);
+
+                $newAccount = EventAccount::create([
+                    'user_id' => $userId,
+                    'event_id' => null,
+                    'login' => $login,
+                    'password' => $hashedPassword,
+                    'seat_number' => null,
+                    'role_id' => $validated['role_id'],
+                ]);
+
+                $newAccount->load(['user', 'role']);
+
+                \Log::info('Создан новый системный аккаунт для пользователя');
+
+                return response()->json([
+                    'message' => 'Системная учётная запись создана',
+                    'data' => $newAccount,
+                    'credentials' => [
+                        'login' => $login,
+                        'raw_password' => $rawPassword
+                    ]
+                ], 201);
+            }
+
+            // 5. Если есть системные аккаунты
+            // Проверяем, не меняется ли на ту же роль
+            foreach ($systemAccounts as $account) {
+                if ($account->role_id == $validated['role_id']) {
+                    return response()->json([
+                        'message' => 'Роль уже установлена',
+                        'data' => $account->load(['user', 'role'])
+                    ], 200);
+                }
+            }
+
+            // 6. Берем первый системный аккаунт и обновляем его
+            $account = $systemAccounts->first();
+            $oldRoleId = $account->role_id;
+            $account->role_id = $validated['role_id'];
+            $account->save();
+
+            $account->load(['user', 'role']);
+
+            \Log::info('Роль обновлена: ' . $oldRoleId . ' -> ' . $validated['role_id']);
+
+            return response()->json([
+                'message' => 'Системная учётная запись обновлена',
+                'data' => $account
+            ], 200);
+
+        } catch (\Exception $e) {
+            \Log::error('Error in updateSystemAccount: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+            
+            return response()->json([
+                'message' => 'Внутренняя ошибка сервера',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -244,10 +421,63 @@ class EventAccountController extends Controller
         return str_shuffle($password);
     }
 
-    // 🔴 СТАРЫЙ МЕТОД: Теперь только для хэширования
-    private function generatePassword(): string
+    public function generatePassword($userId)
     {
-        $rawPassword = $this->generateRawPassword();
-        return Hash::make($rawPassword);
+        // Находим системную учётную запись пользователя
+        $account = EventAccount::where('user_id', $userId)
+            ->whereHas('role', function ($query) {
+                $query->where('system_role', true);
+            })
+            ->first();
+
+        if (!$account) {
+            return response()->json(['error' => 'Системная учётная запись не найдена'], 404);
+        }
+
+        // Генерируем случайный пароль
+        $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#@#$%^&*';
+        $password = '';
+        for ($i = 0; $i < 12; $i++) {
+            $password .= $chars[rand(0, strlen($chars) - 1)];
+        }
+
+        // Сохраняем зашифрованный пароль
+        $account->password = Hash::make($password);
+        $account->save();
+
+        return response()->json([
+            'password' => $password // Возвращаем **незашифрованный** пароль клиенту!
+        ]);
+    }
+
+
+    private function generateSystemLogin(User $user): string
+    {
+        $lastName = strtolower($user->last_name);
+        $hash = substr(md5($user->id), 0, 4); // первые 4 символа хеша
+        return "{$lastName}_{$hash}";
+    }
+
+    //удалить системный аакаунт пользователя
+    public function destroySystemAccounts(Request $request, $userId)
+    {
+        // Находим все системные аккаунты пользователя (event_id = null)
+        $systemAccounts = EventAccount::where('user_id', $userId)
+            ->whereNull('event_id') // это признак системного аккаунта
+            ->get();
+
+        if ($systemAccounts->isEmpty()) {
+            return response()->json([
+                'message' => 'У пользователя нет системных аккаунтов',
+                'deleted_count' => 0
+            ], 200);
+        }
+
+        // Удаляем их все
+        foreach ($systemAccounts as $account) {
+            $account->delete();
+        }
+
+        return response()->noContent(); // 204 No Content
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 
 class UserController extends Controller
 {
@@ -59,13 +60,28 @@ class UserController extends Controller
      */
     public function show(string $id)
     {
-        $user = User::with(['group'])->find($id);
-        
+        $user = User::with([
+            'group',
+            'eventAccounts.role' => function ($query) {
+                $query->where('roles.system_role', true);
+            }
+        ])->find($id);
+
         if (!$user) {
             return response()->json(['error' => 'User not found'], 404);
         }
-        
-        return $user;
+
+        // Извлекаем системную роль (если есть)
+        $systemRole = $user->eventAccounts
+            ->firstWhere(function ($eventAccount) {
+                return $eventAccount->role && $eventAccount->role->system_role;
+            })
+            ->role ?? null;
+
+        return response()->json([
+            'user' => $user,
+            'system_role' => $systemRole // теперь содержит всю роль (id, name и т.д.)
+        ]);
     }
 
     /**
@@ -74,17 +90,36 @@ class UserController extends Controller
      */
     public function update(Request $request, string $id)
     {
+        \Log::info('UserController update called', [
+            'user_id' => $id,
+            'data' => $request->all()
+        ]);
+
         $user = User::find($id);
-    
+
         if (!$user) {
             return response()->json(['error' => 'User not found'], 404);
         }
         
-        $user->update($request->only([
-            'last_name', 'first_name', 'middle_name', 'group_id'
-        ]));
+        // Только поля, которые есть в таблице users
+        $allowedFields = [
+            'last_name', 
+            'first_name', 
+            'middle_name', 
+            'group_id'
+        ];
         
-        return $user;
+        $updateData = $request->only($allowedFields);
+        
+        \Log::info('Updating user with data:', $updateData);
+        
+        $user->update($updateData);
+        
+        // Загружаем отношения
+        $user->load(['group']);
+        
+        // ВАЖНО: метод update должен возвращать просто пользователя, а не структуру как show!
+        return $user; // Просто $user, не обернутый в массив!
     }
 
     /**
@@ -93,14 +128,67 @@ class UserController extends Controller
      */
     public function destroy(string $id)
     {
+        \Log::info('UserController destroy called', [
+            'user_id' => $id,
+            'current_user_id' => Auth::id()
+        ]);
+        
         $user = User::find($id);
         
         if (!$user) {
-            return response()->json(['error' => 'User not found'], 404);
+            return response()->json(['error' => 'Пользователь не найден'], 404);
         }
         
-        $user->delete();
-        return response()->noContent();
+        // 1. Проверка: нельзя удалить пользователя с id=1
+        if ($user->id === 1) {
+            return response()->json([
+                'error' => 'Нельзя удалить системного администратора (пользователь ID=1)'
+            ], 403);
+        }
+        
+        // 2. Проверка: нельзя удалить себя
+        $currentUserId = Auth::id();
+        if ($user->id === $currentUserId) {
+            return response()->json([
+                'error' => 'Вы не можете удалить свою собственную учётную запись'
+            ], 403);
+        }
+        
+        // 3. Проверка: есть ли связанные записи (для информации)
+        $eventAccountsCount = $user->eventAccounts()->count();
+        \Log::info('У пользователя найдено event_accounts:', [
+            'user_id' => $user->id,
+            'event_accounts_count' => $eventAccountsCount
+        ]);
+        
+        // 4. Удаление (с каскадом)
+        try {
+            $user->delete();
+            
+            \Log::info('Пользователь успешно удален', [
+                'user_id' => $id,
+                'name' => $user->last_name . ' ' . $user->first_name,
+                'event_accounts_auto_deleted' => $eventAccountsCount
+            ]);
+            
+            return response()->json([
+                'message' => 'Пользователь успешно удален',
+                'details' => [
+                    'name' => $user->last_name . ' ' . $user->first_name,
+                    'auto_deleted_event_accounts' => $eventAccountsCount
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Ошибка при удалении пользователя:', [
+                'user_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'error' => 'Ошибка при удалении пользователя: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     // получение учетных записей пользователя учётные записи пользователя

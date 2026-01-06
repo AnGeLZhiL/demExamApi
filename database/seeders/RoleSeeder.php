@@ -13,9 +13,11 @@ class RoleSeeder extends Seeder
      */
     public function run(): void
     {
-        Role::create(['name' => 'Главный эксперт']);
-        Role::create(['name' => 'Эксперт']);
-        Role::create(['name' => 'Технический эксперт']);
-        Role::create(['name' => 'Участник']);
+        Role::create(['name' => 'Главный эксперт', 'system_role' => false]);
+        Role::create(['name' => 'Эксперт', 'system_role' => false]);
+        Role::create(['name' => 'Технический эксперт', 'system_role' => false]);
+        Role::create(['name' => 'Участник', 'system_role' => false]);
+        Role::create(['name' => 'Администратор', 'system_role' => true]);
+        Role::create(['name' => 'Наблюдатель', 'system_role' => true]);
     }
 }

@@ -17,6 +17,7 @@ use App\Http\Controllers\TypeController;
 use App\Http\Controllers\ContextController;
 use App\Http\Controllers\GogsController;
 use App\Http\Controllers\ModuleRepositoryController;
+use App\Http\Controllers\GroupController;
 
 
 /*
@@ -35,7 +36,8 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 Route::post('/login', [AuthController::class, 'login']);
-
+Route::get('/databases/{database}/diagnose', [DatabaseController::class, 'diagnoseDatabase']);
+Route::get('/databases/{database}/check-lock', [DatabaseController::class, 'checkLockStatus']);
 
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -69,6 +71,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('event-accounts', EventAccountController::class);
     Route::get('events/{eventId}/event-accounts', [EventAccountController::class, 'getEventAccounts']);
     Route::put('events/{eventId}/users/{userId}/seat', [EventAccountController::class, 'updateSeat']);
+    Route::post('/system-accounts', [EventAccountController::class, 'storeSystemAccount']);
+    Route::delete('/users/{userId}/system-accounts', [EventAccountController::class, 'destroySystemAccounts']);
+    Route::post('/system-accounts/{id}/generate-password', [EventAccountController::class, 'generatePassword']);
+    Route::put('/users/{userId}/system-accounts', [EventAccountController::class, 'updateSystemAccount']);
+
 
     //Module
     Route::apiResource('modules', ModuleController::class);
@@ -77,29 +84,54 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('servers', ServerController::class);
 
     //Repository
-    Route::apiResource('repositories', RepositoryController::class);
-    // Mock API для Gogs
-    Route::post('/modules/{module}/repositories/create-all', [RepositoryController::class, 'createForModule']);
-    Route::get('/modules/{module}/repositories', [RepositoryController::class, 'getByModule']);
-    Route::post('/gogs/test-connection', [RepositoryController::class, 'testGogsConnection']);
+    Route::prefix('repositories')->group(function () {
+        // Сначала специальные маршруты
+        Route::get('/test-gogs', [RepositoryController::class, 'testGogsConnection']); // ИЗМЕНИТЕ НА GET
+        
+        // Потом CRUD маршруты
+        Route::get('/', [RepositoryController::class, 'index']);
+        Route::post('/', [RepositoryController::class, 'store']);
+        Route::get('/{id}', [RepositoryController::class, 'show']);
+        Route::put('/{id}', [RepositoryController::class, 'update']);
+        Route::delete('/{id}', [RepositoryController::class, 'destroy']);
+    });
 
-    //Database - ОБРАТИТЕ ВНИМАНИЕ НА ПОРЯДОК!
-    // Тест подключения к PostgreSQL (публичный)
+    // Модули + репозитории
+    Route::prefix('modules')->group(function () {
+        Route::get('/{moduleId}/repositories', [RepositoryController::class, 'getByModule']);
+        Route::post('/{moduleId}/repositories/create-all', [RepositoryController::class, 'createForModule']);
+    });
+
+
+    //Database
     Route::get('/databases/test-connection', [DatabaseController::class, 'testConnection']);
-
-    // Тест создания БД (публичный)
+    // Универсальный маршрут для создания/обновления БД
     Route::post('/modules/{module}/databases/create-for-participants', [DatabaseController::class, 'createForModule']);
+    Route::post('/modules/{module}/databases/sync', [DatabaseController::class, 'createForModule']);
+    // Создание/пересоздание для одного участника
+    Route::post('/modules/{module}/databases/recreate-for-participant', [DatabaseController::class, 'recreateForParticipant']);
 
-    // Просмотр БД модуля (публичный)
+    // Старый маршрут для пересоздания (если нужен)
+    Route::post('/modules/{module}/databases/recreate-for-all', [DatabaseController::class, 'recreateForAllParticipants']);
+    
+    // Удаление БД
+    Route::delete('/databases/{id}/drop', [DatabaseController::class, 'dropDatabase']);
+    
+    // Получение БД модуля
     Route::get('/modules/{module}/databases', [DatabaseController::class, 'getByModule']);
     
-    // Основной ресурсный маршрут (должен быть ПОСЛЕ специфичных)
+    // CRUD для Database
     Route::apiResource('databases', DatabaseController::class);
-    
-    // Дополнительные маршруты ПОСЛЕ ресурсных
-    Route::get('/databases/{id}/status', [DatabaseController::class, 'checkDatabaseStatus']);
-    Route::post('/databases/{id}/create-real', [DatabaseController::class, 'createRealDatabase']);
-    Route::delete('/databases/{id}/drop-real', [DatabaseController::class, 'dropRealDatabase']);
+
+    Route::delete('/modules/{module}/databases/drop-all', [DatabaseController::class, 'dropAllDatabases']);
+
+    Route::post('/databases/{database}/toggle-lock', [DatabaseController::class, 'toggleDatabaseLock']);
+
+    Route::get('/databases/{database}/check-permissions', [DatabaseController::class, 'checkRealPermissions']);
+    Route::get('/databases/{database}/verify-lock', [DatabaseController::class, 'verifyDatabaseLock']);
+
+    //Group
+    Route::apiResource('groups', GroupController::class);
 
     //File
     Route::apiResource('files', FileController::class);

@@ -19,7 +19,7 @@ return new class extends Migration
             $table->foreignId('event_id')->nullable()
                 ->constrained('events')
                 ->onDelete('cascade');
-            $table->foreignId('role_id')->nullable()
+            $table->foreignId('role_id')
                 ->constrained('roles')
                 ->onDelete('set null');
             $table->string('login')->unique();

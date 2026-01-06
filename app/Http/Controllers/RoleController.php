@@ -11,9 +11,27 @@ class RoleController extends Controller
      * Display a listing of the resource. Отобразите список ресурсов.
      * получить список всех ролей
      */
-    public function index()
+    public function index(Request $request)
     {
-        return Role::all();
+        $isSystem = $request->input('system_role');
+
+        // Валидация: должно быть 0, 1, '0', '1' или null
+        if ($isSystem !== null) {
+            if (!in_array($isSystem, [0, 1, '0', '1'], true)) {
+                return response()->json([
+                    'error' => 'Параметр system_role должен быть 0 или 1'
+                ], 400);
+            }
+            $isSystem = (bool)$isSystem; // Приводим к boolean
+        }
+
+        $query = Role::query();
+
+        if ($isSystem !== null) {
+            $query->where('system_role', $isSystem);
+        }
+
+        return $query->get();
     }
 
     /**

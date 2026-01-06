@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Repository;
+use App\Services\GogsService;
 use App\Services\RepositoryService;
+
 
 class RepositoryController extends Controller
 {
@@ -203,36 +205,27 @@ class RepositoryController extends Controller
      */
     public function testGogsConnection(Request $request)
     {
-        // Для mock-режима
-        if (config('services.gogs.mock')) {
-            return response()->json([
-                'status' => 'connected',
-                'message' => 'Mock Gogs сервер доступен',
-                'version' => '1.16.9',
-                'mock' => true
-            ]);
-        }
-        
-        // Для реального Gogs
+        $gogsService = new GogsService();
+    
         try {
-            $response = Http::withToken(config('services.gogs.token'))
-                ->get(config('services.gogs.url') . '/api/v1/version');
-                
-            if ($response->successful()) {
-                return response()->json([
-                    'status' => 'connected',
-                    'message' => 'Gogs сервер доступен',
-                    'version' => $response->json()['version'],
-                    'mock' => false
-                ]);
-            } else {
-                throw new \Exception('Ошибка подключения');
-            }
+            $result = $gogsService->testConnection();
+            
+            return response()->json([
+                'success' => $result['success'] ?? false,
+                'status' => $result['status'] ?? 'error',
+                'message' => $result['message'] ?? 'Unknown error',
+                'user' => $result['user'] ?? null,
+                'url' => $result['url'] ?? config('services.gogs.url', ''),
+                'mock' => config('services.gogs.mock', true)
+            ]);
+            
         } catch (\Exception $e) {
             return response()->json([
+                'success' => false,
                 'status' => 'error',
                 'message' => $e->getMessage(),
-                'mock' => false
+                'url' => config('services.gogs.url', ''),
+                'mock' => config('services.gogs.mock', true)
             ], 500);
         }
     }

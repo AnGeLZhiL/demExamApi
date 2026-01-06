@@ -155,7 +155,7 @@ class EventAccountSeeder extends Seeder
             'password' => Hash::make('AdminPass123!'),
             'password_plain' => 'AdminPass123!',
             'seat_number' => null,
-            'role_id' => null
+            'role_id' => 5
         ]);
         
         // 2. Администратор Смирнов - системная учетка
@@ -166,7 +166,7 @@ class EventAccountSeeder extends Seeder
             'password' => Hash::make('AdminPass456!'),
             'password_plain' => 'AdminPass456!',
             'seat_number' => null,
-            'role_id' => null
+            'role_id' => 5
         ]);
         
         // 3. Наблюдатель - системная учетка
@@ -177,7 +177,7 @@ class EventAccountSeeder extends Seeder
             'password' => Hash::make('ObserverPass!'),
             'password_plain' => 'ObserverPass!',
             'seat_number' => null,
-            'role_id' => null
+            'role_id' => 6
         ]);
     }   
 }

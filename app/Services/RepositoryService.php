@@ -6,7 +6,10 @@ use App\Models\Repository;
 use App\Models\EventAccount;
 use App\Models\Module;
 use App\Models\Role;
-use Illuminate\Support\Facades\Http;
+use App\Models\Server;
+use App\Models\Type;
+use App\Models\Context;
+use App\Models\Status;
 use Illuminate\Support\Facades\Log;
 
 class RepositoryService
@@ -20,7 +23,7 @@ class RepositoryService
             throw new \Exception('Модуль не привязан к мероприятию');
         }
         
-        // Вариант 1: Получаем ID роли "Участник"
+        // Получаем ID роли "Участник"
         $participantRoleId = Role::where('name', 'Участник')->value('id');
         
         if (!$participantRoleId) {
@@ -29,12 +32,11 @@ class RepositoryService
         
         // Получаем участников мероприятия с ролью "Участник"
         $participants = EventAccount::where('event_id', $module->event_id)
-            ->where('role_id', $participantRoleId) // Используем ID роли
+            ->where('role_id', $participantRoleId)
             ->with(['user'])
             ->get();
         
         if ($participants->isEmpty()) {
-            // Давайте получим отладочную информацию
             $debugInfo = $this->getDebugInfo($module);
             throw new \Exception(
                 'В мероприятии нет участников с ролью "Участник". ' .
@@ -50,6 +52,10 @@ class RepositoryService
             'repositories' => []
         ];
         
+        // Используем GogsService если настроен
+        $useRealGogs = !config('services.gogs.mock', true);
+        $gogsService = $useRealGogs ? new GogsService() : null;
+        
         foreach ($participants as $participant) {
             try {
                 // Проверяем, не существует ли уже репозиторий
@@ -62,7 +68,11 @@ class RepositoryService
                 }
                 
                 // Создаем репозиторий
-                $repository = $this->createRepository($module, $participant);
+                if ($useRealGogs && $gogsService) {
+                    $repository = $this->createRealGogsRepository($module, $participant, $gogsService);
+                } else {
+                    $repository = $this->createMockRepository($module, $participant);
+                }
                 
                 $results['successful']++;
                 $results['repositories'][] = [
@@ -72,13 +82,16 @@ class RepositoryService
                     'repository_url' => $repository->url,
                     'participant_id' => $participant->id,
                     'participant_name' => $participant->user->name ?? 'Неизвестно',
-                    'mock_gogs' => true
+                    'mock_gogs' => !$useRealGogs,
+                    'gogs_username' => $repository->metadata['gogs_username'] ?? null,
+                    'gogs_password' => $repository->metadata['gogs_password'] ?? null,
                 ];
                 
                 Log::info('Создан репозиторий для участника', [
                     'module_id' => $moduleId,
                     'participant_id' => $participant->id,
-                    'repository_id' => $repository->id
+                    'repository_id' => $repository->id,
+                    'real_gogs' => $useRealGogs
                 ]);
                 
             } catch (\Exception $e) {
@@ -103,32 +116,65 @@ class RepositoryService
     }
     
     /**
-     * Отладочная информация
+     * Создать реальный репозиторий в Gogs
      */
-    private function getDebugInfo(Module $module)
+    private function createRealGogsRepository(Module $module, EventAccount $participant, GogsService $gogsService)
     {
-        $allAccounts = EventAccount::where('event_id', $module->event_id)
-            ->with(['role'])
-            ->get();
+        $user = $participant->user;
+        $participantName = $user->name ?? $user->email ?? 'Участник';
         
-        $rolesDistribution = [];
-        foreach ($allAccounts as $account) {
-            $roleName = $account->role->name ?? 'Unknown';
-            $rolesDistribution[$roleName] = ($rolesDistribution[$roleName] ?? 0) + 1;
-        }
+        // Генерируем уникальные имена
+        $username = 'student-' . $module->id . '-' . $participant->id;
+        $repoName = 'exam-module-' . $module->id . '-' . $participant->id;
         
-        return [
-            'total_accounts' => $allAccounts->count(),
-            'roles_distribution' => $rolesDistribution,
-            'event_id' => $module->event_id,
-            'module_id' => $module->id
-        ];
+        // 1. Создаем пользователя в Gogs
+        $userResult = $gogsService->createUser(
+            $username,
+            $participantName,
+            $user->email ?? ($username . '@exam.local')
+        );
+        
+        // 2. Создаем репозиторий
+        $repoResult = $gogsService->createRepository(
+            'adminangelina', // создаем под админом
+            $repoName,
+            "Экзаменационный репозиторий для {$participantName} в модуле '{$module->name}'"
+        );
+        
+        // 3. Сохраняем в базу данных
+        $repository = Repository::create([
+            'name' => $repoName,
+            'url' => $repoResult['web_url'],
+            'description' => $repoResult['repository']['description'],
+            'server_id' => $this->getGogsServerId(),
+            'type_id' => $this->getRepositoryTypeId(),
+            'event_account_id' => $participant->id,
+            'module_id' => $module->id,
+            'status_id' => $this->getActiveStatusId(),
+            'is_active' => true,
+            'gogs_repo_id' => $repoResult['repository']['id'],
+            'ssh_url' => null,
+            'clone_url' => $repoResult['clone_url'],
+            'metadata' => [
+                'created_in_gogs' => true,
+                'gogs_username' => $username,
+                'gogs_password' => $userResult['password'],
+                'gogs_data' => $repoResult['repository'],
+                'participant_info' => [
+                    'name' => $participantName,
+                    'email' => $user->email ?? null,
+                ],
+                'created_at' => now()->toISOString(),
+            ]
+        ]);
+        
+        return $repository;
     }
     
     /**
-     * Создать репозиторий для участника
+     * Создать mock-репозиторий (для тестов)
      */
-    private function createRepository(Module $module, EventAccount $participant)
+    private function createMockRepository(Module $module, EventAccount $participant)
     {
         $repoName = $this->generateRepositoryName($module, $participant);
         $repoUrl = $this->generateMockGogsUrl($repoName);
@@ -136,28 +182,18 @@ class RepositoryService
         $user = $participant->user;
         $participantName = $user->name ?? $user->email ?? 'Участник';
         
-        // Получаем ID статуса "Активен" для репозиториев
-        $activeStatusId = $this->getActiveStatusId();
-        
-        // Получаем сервер Gogs
-        $serverId = $this->getGogsServerId();
-        
-        // Получаем тип репозитория
-        $typeId = $this->getRepositoryTypeId();
-        
-        // Используем метод из модели или создаем напрямую
         $repository = Repository::create([
             'name' => $repoName,
             'url' => $repoUrl,
             'description' => "Репозиторий для участника {$participantName} в модуле '{$module->name}'",
-            'server_id' => $serverId,
-            'type_id' => $typeId,
+            'server_id' => $this->getGogsServerId(),
+            'type_id' => $this->getRepositoryTypeId(),
             'event_account_id' => $participant->id,
             'module_id' => $module->id,
-            'status_id' => $activeStatusId,
+            'status_id' => $this->getActiveStatusId(),
             'is_active' => true,
             'gogs_repo_id' => rand(1000, 9999),
-            'ssh_url' => "git@mock-gogs.local:admin/{$repoName}.git",
+            'ssh_url' => null,
             'clone_url' => "https://mock-gogs.local/admin/{$repoName}.git",
             'metadata' => [
                 'created_in_mock' => true,
@@ -170,142 +206,6 @@ class RepositoryService
         ]);
         
         return $repository;
-    }
-
-    /**
-     * Получить ID сервера Gogs
-     */
-    private function getGogsServerId()
-    {
-        $gogsType = \App\Models\Type::where('name', 'Gogs')
-            ->whereHas('context', function($q) {
-                $q->where('name', 'server');
-            })->first();
-        
-        if (!$gogsType) {
-            throw new \Exception('Тип сервера "Gogs" не найден');
-        }
-        
-        $server = \App\Models\Server::where('type_id', $gogsType->id)
-            ->where('is_active', true)
-            ->first();
-        
-        if (!$server) {
-            throw new \Exception('Активный Gogs сервер не найден');
-        }
-        
-        return $server->id;
-    }
-
-    /**
-     * Получить ID типа репозитория
-     */
-    private function getRepositoryTypeId()
-    {
-        $repoType = \App\Models\Type::where('name', 'Рабочий')
-            ->whereHas('context', function($q) {
-                $q->where('name', 'repository');
-            })->first();
-        
-        if (!$repoType) {
-            // Если нет типа "Рабочий", берем первый доступный
-            $context = \App\Models\Context::where('name', 'repository')->first();
-            $repoType = \App\Models\Type::where('context_id', $context->id)->first();
-        }
-        
-        if (!$repoType) {
-            throw new \Exception('Тип репозитория не найден');
-        }
-        
-        return $repoType->id;
-    }
-
-    /**
-     * Получить ID статуса "Активен" для репозиториев
-     */
-    private function getActiveStatusId()
-    {
-        // Находим контекст "repository"
-        $repositoryContext = \App\Models\Context::where('name', 'repository')->first();
-        
-        if (!$repositoryContext) {
-            throw new \Exception('Контекст "repository" не найден');
-        }
-        
-        // Находим статус "Активен" для этого контекста
-        $activeStatus = \App\Models\Status::where('name', 'Активен')
-            ->where('context_id', $repositoryContext->id)
-            ->first();
-        
-        if (!$activeStatus) {
-            throw new \Exception('Статус "Активен" для репозиториев не найден');
-        }
-        
-        return $activeStatus->id;
-    }
-
-    /**
-     * Получить ID статуса "Отключен" для репозиториев
-     */
-    private function getInactiveStatusId()
-    {
-        $repositoryContext = \App\Models\Context::where('name', 'repository')->first();
-        
-        $inactiveStatus = \App\Models\Status::where('name', 'Отключен')
-            ->where('context_id', $repositoryContext->id)
-            ->first();
-        
-        return $inactiveStatus->id ?? null;
-    }
-    
-    /**
-     * Генерация имени репозитория
-     */
-    private function generateRepositoryName(Module $module, EventAccount $participant)
-    {
-        // Формируем безопасное имя
-        $moduleSlug = $this->slugify($module->name);
-        $participantSlug = $this->slugify($participant->user->name ?? 'participant');
-        
-        // Добавляем уникальный идентификатор
-        $uniqueId = substr(md5($module->id . $participant->id . time()), 0, 6);
-        
-        return "module-{$moduleSlug}-{$participantSlug}-{$uniqueId}";
-    }
-    
-    /**
-     * Генерация URL для mock Gogs
-     */
-    private function generateMockGogsUrl($repoName)
-    {
-        $baseUrl = config('services.gogs.mock_url', 'http://localhost:3000');
-        return "{$baseUrl}/admin/{$repoName}";
-    }
-    
-    /**
-     * Преобразование строки в slug
-     */
-    private function slugify($string)
-    {
-        if (empty($string)) {
-            return 'unknown';
-        }
-        
-        // Транслитерация русских букв
-        $transliteration = [
-            'а' => 'a', 'б' => 'b', 'в' => 'v', 'г' => 'g', 'д' => 'd',
-            'е' => 'e', 'ё' => 'yo', 'ж' => 'zh', 'з' => 'z', 'и' => 'i',
-            'й' => 'y', 'к' => 'k', 'л' => 'l', 'м' => 'm', 'н' => 'n',
-            'о' => 'o', 'п' => 'p', 'р' => 'r', 'с' => 's', 'т' => 't',
-            'у' => 'u', 'ф' => 'f', 'х' => 'h', 'ц' => 'ts', 'ч' => 'ch',
-            'ш' => 'sh', 'щ' => 'sch', 'ъ' => '', 'ы' => 'y', 'ь' => '',
-            'э' => 'e', 'ю' => 'yu', 'я' => 'ya'
-        ];
-        
-        $string = mb_strtolower($string, 'UTF-8');
-        $string = strtr($string, $transliteration);
-        
-        return preg_replace('/[^a-z0-9]/', '-', trim($string));
     }
     
     /**
@@ -326,7 +226,6 @@ class RepositoryService
             ->get();
             
             return $repositories->map(function($repo) {
-                // Безопасное получение данных
                 $statusName = null;
                 if ($repo->status && is_object($repo->status)) {
                     $statusName = $repo->status->name;
@@ -353,7 +252,13 @@ class RepositoryService
                     ];
                 }
                 
-                // МАППИНГ СТАТУСОВ ДЛЯ ФРОНТЕНДА
+                // Метаданные из Gogs
+                $metadata = $repo->metadata ?? [];
+                $isRealGogs = $metadata['created_in_gogs'] ?? false;
+                $gogsUsername = $metadata['gogs_username'] ?? null;
+                $gogsPassword = $metadata['gogs_password'] ?? null;
+                
+                // Статус для фронтенда
                 $frontendStatus = $this->mapStatusForFrontend($repo);
                 
                 return [
@@ -363,8 +268,8 @@ class RepositoryService
                     'url' => $repo->url,
                     'ssh_url' => $repo->ssh_url,
                     'clone_url' => $repo->clone_url,
-                    'status' => $frontendStatus, // Используем маппированный статус
-                    'original_status' => $statusName, // Оригинальный статус для отладки
+                    'status' => $frontendStatus,
+                    'original_status' => $statusName,
                     'status_id' => $repo->status_id,
                     'is_active' => $repo->is_active,
                     'gogs_repo_id' => $repo->gogs_repo_id,
@@ -374,21 +279,123 @@ class RepositoryService
                     'created_at' => $repo->created_at ? $repo->created_at->format('d.m.Y H:i') : null,
                     'created_at_full' => $repo->created_at,
                     'updated_at' => $repo->updated_at,
-                    'metadata' => $repo->metadata,
+                    'metadata' => $metadata,
+                    'is_real_gogs' => $isRealGogs,
+                    'gogs_credentials' => $gogsUsername ? [
+                        'username' => $gogsUsername,
+                        'password' => $gogsPassword ? '********' : null,
+                        'has_password' => !empty($gogsPassword)
+                    ] : null,
                 ];
             });
             
         } catch (\Exception $e) {
-            \Log::error('Error in getModuleRepositories: ' . $e->getMessage(), [
+            Log::error('Error in getModuleRepositories: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
             ]);
             throw $e;
         }
     }
-
-    /**
-     * Маппинг статусов для фронтенда
-     */
+    
+    // Остальные методы (getGogsServerId, getRepositoryTypeId, getActiveStatusId, 
+    // generateRepositoryName, generateMockGogsUrl, slugify, mapStatusForFrontend)
+    // остаются как в вашем исходном коде
+    
+    private function getGogsServerId()
+    {
+        $gogsType = Type::where('name', 'Gogs')
+            ->whereHas('context', function($q) {
+                $q->where('name', 'server');
+            })->first();
+        
+        if (!$gogsType) {
+            throw new \Exception('Тип сервера "Gogs" не найден');
+        }
+        
+        $server = Server::where('type_id', $gogsType->id)
+            ->where('is_active', true)
+            ->first();
+        
+        if (!$server) {
+            throw new \Exception('Активный Gogs сервер не найден');
+        }
+        
+        return $server->id;
+    }
+    
+    private function getRepositoryTypeId()
+    {
+        $repoType = Type::where('name', 'Рабочий')
+            ->whereHas('context', function($q) {
+                $q->where('name', 'repository');
+            })->first();
+        
+        if (!$repoType) {
+            $context = Context::where('name', 'repository')->first();
+            $repoType = Type::where('context_id', $context->id)->first();
+        }
+        
+        if (!$repoType) {
+            throw new \Exception('Тип репозитория не найден');
+        }
+        
+        return $repoType->id;
+    }
+    
+    private function getActiveStatusId()
+    {
+        $repositoryContext = Context::where('name', 'repository')->first();
+        
+        if (!$repositoryContext) {
+            throw new \Exception('Контекст "repository" не найден');
+        }
+        
+        $activeStatus = Status::where('name', 'Активен')
+            ->where('context_id', $repositoryContext->id)
+            ->first();
+        
+        if (!$activeStatus) {
+            throw new \Exception('Статус "Активен" для репозиториев не найден');
+        }
+        
+        return $activeStatus->id;
+    }
+    
+    private function generateRepositoryName(Module $module, EventAccount $participant)
+    {
+        $moduleSlug = $this->slugify($module->name);
+        $participantSlug = $this->slugify($participant->user->name ?? 'participant');
+        $uniqueId = substr(md5($module->id . $participant->id . time()), 0, 6);
+        
+        return "module-{$moduleSlug}-{$participantSlug}-{$uniqueId}";
+    }
+    
+    private function generateMockGogsUrl($repoName)
+    {
+        $baseUrl = config('services.gogs.mock_url', 'http://localhost:3000');
+        return "{$baseUrl}/admin/{$repoName}";
+    }
+    
+    private function slugify($string)
+    {
+        if (empty($string)) return 'unknown';
+        
+        $transliteration = [
+            'а' => 'a', 'б' => 'b', 'в' => 'v', 'г' => 'g', 'д' => 'd',
+            'е' => 'e', 'ё' => 'yo', 'ж' => 'zh', 'з' => 'z', 'и' => 'i',
+            'й' => 'y', 'к' => 'k', 'л' => 'l', 'м' => 'm', 'н' => 'n',
+            'о' => 'o', 'п' => 'p', 'р' => 'r', 'с' => 's', 'т' => 't',
+            'у' => 'u', 'ф' => 'f', 'х' => 'h', 'ц' => 'ts', 'ч' => 'ch',
+            'ш' => 'sh', 'щ' => 'sch', 'ъ' => '', 'ы' => 'y', 'ь' => '',
+            'э' => 'e', 'ю' => 'yu', 'я' => 'ya'
+        ];
+        
+        $string = mb_strtolower($string, 'UTF-8');
+        $string = strtr($string, $transliteration);
+        
+        return preg_replace('/[^a-z0-9]/', '-', trim($string));
+    }
+    
     private function mapStatusForFrontend($repository)
     {
         if (!$repository->status) {
@@ -397,7 +404,6 @@ class RepositoryService
         
         $statusName = $repository->status->name;
         
-        // Основной маппинг
         if ($statusName === 'Активен') {
             return $repository->is_active ? 'active' : 'disabled';
         }
@@ -406,7 +412,6 @@ class RepositoryService
             return 'disabled';
         }
         
-        // Дополнительные статусы если будут
         $mapping = [
             'Создается' => 'pending',
             'Ожидает' => 'pending',
@@ -416,28 +421,24 @@ class RepositoryService
         
         return $mapping[$statusName] ?? strtolower($statusName);
     }
-
-    /**
-     * Определить текст статуса для фронтенда
-     */
-    private function determineStatusText($repository)
+    
+    private function getDebugInfo(Module $module)
     {
-        // Если у репозитория нет статуса
-        if (!$repository->status) {
-            return 'unknown';
+        $allAccounts = EventAccount::where('event_id', $module->event_id)
+            ->with(['role'])
+            ->get();
+        
+        $rolesDistribution = [];
+        foreach ($allAccounts as $account) {
+            $roleName = $account->role->name ?? 'Unknown';
+            $rolesDistribution[$roleName] = ($rolesDistribution[$roleName] ?? 0) + 1;
         }
         
-        // Маппинг наших статусов на то, что ожидает фронтенд
-        $statusMapping = [
-            'Активен' => 'active',    // или 'ready'
-            'Отключен' => 'disabled',
-            'Создается' => 'pending', // или 'creating'
-            'Ошибка' => 'error',
+        return [
+            'total_accounts' => $allAccounts->count(),
+            'roles_distribution' => $rolesDistribution,
+            'event_id' => $module->event_id,
+            'module_id' => $module->id
         ];
-        
-        $statusName = $repository->status->name;
-        
-        // Возвращаем маппированное значение или оригинальное
-        return $statusMapping[$statusName] ?? strtolower($statusName);
     }
 }

@@ -22,7 +22,7 @@ class AuthController extends Controller
         ]);
 
         // поиск учетной записи по логину с загрузкой связей
-        $eventAccount = EventAccount::with(['user.systemRole', 'role'])
+        $eventAccount = EventAccount::with(['role'])
             ->where('login', $request->login)
             ->first();
 
@@ -55,16 +55,10 @@ class AuthController extends Controller
                 'last_name' => $user->last_name,
                 'first_name' => $user->first_name,
                 'middle_name' => $user->middle_name,
-                'group_id' => $user->group_id,
-                'system_role' => $user->systemRole // системная роль пользователя
+                'group_id' => $user->group_id
             ],
             'is_system_account' => $isSystemAccount,
         ];
-
-        // Добавляем системную роль, если она есть
-        if ($user->systemRole) {
-            $response['system_role'] = $user->systemRole;
-        }
 
         if ($isSystemAccount) {
             // СИСТЕМНАЯ УЧЕТКА (админ/наблюдатель)
@@ -108,7 +102,7 @@ class AuthController extends Controller
      */
     public function user(Request $request)
     {
-        $user = $request->user()->load('systemRole');
+        $user = $request->user();
     
         // Находим последнюю учетную запись пользователя
         $eventAccount = EventAccount::where('user_id', $user->id)
@@ -122,18 +116,13 @@ class AuthController extends Controller
                 'last_name' => $user->last_name,
                 'first_name' => $user->first_name,
                 'middle_name' => $user->middle_name,
-                'group_id' => $user->group_id,
-                'system_role' => $user->systemRole
+                'group_id' => $user->group_id
+                
             ]
         ];
         
         if ($eventAccount) {
             $response['is_system_account'] = is_null($eventAccount->event_id);
-            
-            // Добавляем системную роль
-            if ($user->systemRole) {
-                $response['system_role'] = $user->systemRole;
-            }
             
             if (!is_null($eventAccount->event_id)) {
                 $response['event_account'] = [
