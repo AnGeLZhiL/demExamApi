@@ -18,6 +18,7 @@ use App\Http\Controllers\ContextController;
 use App\Http\Controllers\GogsController;
 use App\Http\Controllers\ModuleRepositoryController;
 use App\Http\Controllers\GroupController;
+use App\Http\Controllers\UniversityParserController;
 
 
 /*
@@ -138,4 +139,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     //Role
     Route::apiResource('roles', RoleController::class);
+
+    // Маршруты для парсинга данных университета
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/university/groups/search', [UniversityParserController::class, 'searchGroups']);
+    });
 });
