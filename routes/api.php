@@ -140,4 +140,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Role
     Route::apiResource('roles', RoleController::class);
+
+    
 });
