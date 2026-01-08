@@ -31,7 +31,7 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
     'gogs' => [
-        'url' => env('GOGS_URL', 'http://213441fe8ea4.vps.myjino.ru:3000'),
+        'url' => env('GOGS_URL', 'https://213441fe8ea4.vps.myjino.ru'),
         'api_token' => env('GOGS_API_TOKEN', '9252159489cf6b1f3cb6e1575010d2db103b10b8'),
         'admin_username' => env('GOGS_ADMIN_USERNAME', 'adminangelina'),
         'admin_email' => env('GOGS_ADMIN_EMAIL', 'angelina.zhilyakova.2002@mail.ru'),

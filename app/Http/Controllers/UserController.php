@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Group;
 
 class UserController extends Controller
 {
@@ -201,5 +202,94 @@ class UserController extends Controller
         }
         
         return $user->eventAccounts()->with(['event', 'role'])->get();
+    }
+
+    //Получить пользователей по группе
+    public function getByGroup(Request $request, $groupId = null)
+    {
+        try {
+        $query = User::with(['group']);
+        
+        // Определяем ID группы
+        $actualGroupId = $groupId ?: $request->get('group_id');
+        
+        if (!$actualGroupId) {
+            return response()->json([
+                'error' => 'Group ID required',
+                'message' => 'Не указан ID группы'
+            ], 400);
+        }
+        
+        // 🔴 ПРОСТО ФИЛЬТРУЕМ ПО ГРУППЕ - ВСЕ ПОЛЬЗОВАТЕЛИ С ГРУППОЙ УЖЕ НЕ СИСТЕМНЫЕ
+        $query->where('group_id', $actualGroupId);
+        
+        // Сортировка
+        $query->orderBy('last_name')
+              ->orderBy('first_name');
+        
+        $users = $query->get(['id', 'last_name', 'first_name', 'middle_name', 'group_id']);
+        
+        return response()->json($users);
+        
+    } catch (\Exception $e) {
+        \Log::error('Ошибка в getByGroup: ' . $e->getMessage());
+        return response()->json([
+            'error' => 'Internal server error',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+    }
+    
+    //Получить группы с количеством пользователей
+    public function getGroupsWithUsers()
+    {
+        try {
+        // 🔴 ПРОСТО ПОЛУЧАЕМ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ С ГРУППАМИ
+        $users = User::whereNotNull('group_id')
+            ->with('group')
+            ->orderBy('group_id')
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get(['id', 'last_name', 'first_name', 'middle_name', 'group_id']);
+        
+        // Группируем пользователей по группам
+        $groupedUsers = [];
+        foreach ($users as $user) {
+            if ($user->group) {
+                $groupId = $user->group_id;
+                if (!isset($groupedUsers[$groupId])) {
+                    $groupedUsers[$groupId] = [
+                        'id' => $user->group->id,
+                        'number' => $user->group->number,
+                        'created_at' => $user->group->created_at,
+                        'updated_at' => $user->group->updated_at,
+                        'users_count' => 0,
+                        'users' => []
+                    ];
+                }
+                
+                $groupedUsers[$groupId]['users'][] = [
+                    'id' => $user->id,
+                    'last_name' => $user->last_name,
+                    'first_name' => $user->first_name,
+                    'middle_name' => $user->middle_name
+                ];
+                
+                $groupedUsers[$groupId]['users_count']++;
+            }
+        }
+        
+        // Преобразуем в массив
+        $result = array_values($groupedUsers);
+        
+        return response()->json($result);
+        
+    } catch (\Exception $e) {
+        \Log::error('Ошибка в getGroupsWithUsers: ' . $e->getMessage());
+        return response()->json([
+            'error' => 'Internal server error',
+            'message' => $e->getMessage()
+        ], 500);
+    }
     }
 }
