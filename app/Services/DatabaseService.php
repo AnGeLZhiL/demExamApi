@@ -677,7 +677,7 @@ private function denyAccessToOtherDatabases($pdo, $username, $allowedDb)
         $randomSuffix = bin2hex(random_bytes(2)); // 2 байта = 4 hex символа
         
         // 6. Формируем имя БД
-        $dbName = $cleanFamily . '_' . $randomSuffix;
+        $dbName = $cleanFamily . '_' . 'm' . $module->id . '_'. $randomSuffix;
         
         // 7. Проверяем уникальность имени в рамках модуля
         $dbName = $this->ensureUniqueName($dbName, $module->id);

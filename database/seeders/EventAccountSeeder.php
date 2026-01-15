@@ -18,7 +18,7 @@ class EventAccountSeeder extends Seeder
     public function run(): void
     {
         
-        // 1. Главный эксперт Петрова (ID 12) - роль Главный эксперт (ID 4)
+        //Главный эксперт Петрова
         EventAccount::create([
             'user_id' => 12,
             'event_id' => 1,
@@ -29,7 +29,7 @@ class EventAccountSeeder extends Seeder
             'role_id' => 1
         ]);
         
-        // 2. Эксперт Сидоров (ID 4) - роль Эксперт (ID 2)
+        //Эксперт Сидоров
         EventAccount::create([
             'user_id' => 4,
             'event_id' => 1,
@@ -40,7 +40,7 @@ class EventAccountSeeder extends Seeder
             'role_id' => 2
         ]);
         
-        // 3. Технический эксперт Морозов (ID 14) - роль Технический эксперт (ID 5)
+        //Технический эксперт Морозов
         EventAccount::create([
             'user_id' => 14,
             'event_id' => 1,
